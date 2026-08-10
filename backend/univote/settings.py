@@ -166,6 +166,10 @@ CSRF_TRUSTED_ORIGINS = [
     o.strip() for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()
 ]
 
+# --- Auth backend ----------------------------------------------------------------
+
+AUTHENTICATION_BACKENDS = ["api.backends.EmailCaseInsensitiveBackend"]
+
 # --- REST framework / JWT --------------------------------------------------------
 
 REST_FRAMEWORK = {
@@ -173,6 +177,11 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    # "login" rate covers the one public, security-sensitive endpoint where
+    # unlimited guessing would undermine the identical-error-message
+    # protection against user enumeration. Generous enough not to lock out
+    # a legitimate user who mistypes a password a few times.
+    "DEFAULT_THROTTLE_RATES": {"login": "20/min"},
 }
 
 # --- Proxy / deployment -----------------------------------------------------------
