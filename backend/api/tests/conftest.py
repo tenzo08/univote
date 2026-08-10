@@ -1,7 +1,10 @@
+import io
 from datetime import timedelta
 
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
+from PIL import Image
 
 from api.models import (
     Ballot,
@@ -107,3 +110,17 @@ def make_ballot(db):
         return Ballot.objects.create(election=election, voter=voter)
 
     return _make_ballot
+
+
+@pytest.fixture
+def tiny_png():
+    """A genuine Pillow-encoded 1x1 PNG — DRF's ImageField validates the
+    file is a real image, so arbitrary bytes won't pass."""
+
+    def _tiny_png(name="candidate.png"):
+        buffer = io.BytesIO()
+        Image.new("RGB", (1, 1), color=(255, 0, 0)).save(buffer, format="PNG")
+        buffer.seek(0)
+        return SimpleUploadedFile(name, buffer.read(), content_type="image/png")
+
+    return _tiny_png

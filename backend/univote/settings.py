@@ -182,6 +182,16 @@ REST_FRAMEWORK = {
     # protection against user enumeration. Generous enough not to lock out
     # a legitimate user who mistypes a password a few times.
     "DEFAULT_THROTTLE_RATES": {"login": "20/min"},
+    # Central exception-to-status mapping (Phase 4) — views call a service
+    # and let failures propagate; see api/exception_handling.py.
+    "EXCEPTION_HANDLER": "api.exception_handling.custom_exception_handler",
+    # LimitOffsetPagination, not PageNumberPagination — 03-API-SPEC.md
+    # names limit/offset explicitly for the voter roster endpoint; using the
+    # same style for the elections list keeps one pagination convention
+    # project-wide. The spec is silent on a default page size; 20 is a
+    # logged decision (see docs/PROGRESS.md).
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
+    "PAGE_SIZE": 20,
 }
 
 # --- Proxy / deployment -----------------------------------------------------------

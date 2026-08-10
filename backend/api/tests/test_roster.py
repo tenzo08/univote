@@ -1,8 +1,12 @@
+import io
+from unittest.mock import patch
+
 import pytest
+from rest_framework.test import APIClient
 
 from api.models import ElectionEnrollment
 from api.services.enrollment import clear, enroll, unenroll
-from api.services.exceptions import HasBallotsError
+from api.services.exceptions import CsvTooLargeError, HasBallotsError
 
 
 @pytest.mark.django_db
@@ -99,3 +103,208 @@ class TestClear:
         assert deleted == 1
         assert not ElectionEnrollment.objects.filter(election=election, voter=plain_voter).exists()
         assert ElectionEnrollment.objects.filter(election=election, voter=candidate_voter).exists()
+
+
+CSV_HEADER = "first_name,last_name,student_number,email,year_level,degree_program\n"
+
+
+@pytest.mark.django_db
+class TestVoterCsvUploadView:
+    def test_admin_happy_path_translates_service_result(self, make_user):
+        admin = make_user(email="admin-csv@test.com", role="admin")
+        csv_content = CSV_HEADER + "Ana,Santos,2021-00001,ana@test.com,1,BS Computer Science\n"
+        upload = io.BytesIO(csv_content.encode("utf-8"))
+        upload.name = "roster.csv"
+
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = client.post(
+            "/api/voters/upload-csv/", {"file": upload}, format="multipart"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["created"] == 1
+        assert data["skipped"] == 0
+        assert data["errors"] == []
+
+    def test_csv_too_large_returns_400(self, make_user):
+        admin = make_user(email="admin-csv2@test.com", role="admin")
+        upload = io.BytesIO(b"whatever")
+        upload.name = "roster.csv"
+
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        with patch(
+            "api.views.roster.import_voters", side_effect=CsvTooLargeError("too big")
+        ):
+            response = client.post(
+                "/api/voters/upload-csv/", {"file": upload}, format="multipart"
+            )
+
+        assert response.status_code == 400
+
+    def test_non_admin_forbidden(self, make_user):
+        user = make_user(email="notadmin-csv@test.com")
+        upload = io.BytesIO(CSV_HEADER.encode("utf-8"))
+        upload.name = "roster.csv"
+
+        client = APIClient()
+        client.force_authenticate(user=user)
+        response = client.post(
+            "/api/voters/upload-csv/", {"file": upload}, format="multipart"
+        )
+        assert response.status_code == 403
+
+    def test_no_file_returns_400(self, make_user):
+        admin = make_user(email="admin-csv3@test.com", role="admin")
+
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = client.post("/api/voters/upload-csv/", {}, format="multipart")
+
+        assert response.status_code == 400
+
+
+@pytest.mark.django_db
+class TestElectionVoterRosterView:
+    def test_admin_lists_voters_with_enrolled_and_has_ballot_flags(
+        self, make_user, make_election, make_voter, make_enrollment, make_ballot
+    ):
+        admin = make_user(email="admin-roster1@test.com", role="admin")
+        election = make_election()
+        enrolled_voter = make_voter(student_number="2021-00001")
+        make_enrollment(election, enrolled_voter)
+        voted_voter = make_voter(student_number="2021-00002")
+        make_enrollment(election, voted_voter)
+        make_ballot(election, voted_voter)
+        unenrolled_voter = make_voter(student_number="2021-00003")
+
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = client.get(f"/api/admin/election-voter-roster/{election.id}/")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 3
+        by_number = {row["student_number"]: row for row in data["results"]}
+        assert by_number["2021-00001"]["enrolled"] is True
+        assert by_number["2021-00001"]["has_ballot"] is False
+        assert by_number["2021-00002"]["has_ballot"] is True
+        assert by_number["2021-00003"]["enrolled"] is False
+
+    def test_q_filters_by_student_number(self, make_user, make_election, make_voter):
+        admin = make_user(email="admin-roster2@test.com", role="admin")
+        election = make_election()
+        make_voter(student_number="2021-11111")
+        make_voter(student_number="2021-22222")
+
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = client.get(
+            f"/api/admin/election-voter-roster/{election.id}/", {"q": "11111"}
+        )
+        data = response.json()
+        assert data["count"] == 1
+        assert data["results"][0]["student_number"] == "2021-11111"
+
+    def test_limit_offset_pagination(self, make_user, make_election, make_voter):
+        admin = make_user(email="admin-roster3@test.com", role="admin")
+        election = make_election()
+        for i in range(5):
+            make_voter(student_number=f"2021-P{i:04d}")
+
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = client.get(
+            f"/api/admin/election-voter-roster/{election.id}/", {"limit": 2, "offset": 1}
+        )
+        data = response.json()
+        assert data["count"] == 5
+        assert len(data["results"]) == 2
+
+    def test_non_admin_forbidden(self, make_user, make_election):
+        user = make_user(email="notadmin-roster@test.com")
+        election = make_election()
+        client = APIClient()
+        client.force_authenticate(user=user)
+        response = client.get(f"/api/admin/election-voter-roster/{election.id}/")
+        assert response.status_code == 403
+
+
+@pytest.mark.django_db
+class TestEnrollVotersView:
+    def test_admin_enrolls_voters(self, make_user, make_election, make_voter):
+        admin = make_user(email="admin-enroll@test.com", role="admin")
+        election = make_election()
+        voter = make_voter(student_number="2021-33333")
+
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = client.post(
+            f"/api/admin/election-voter-roster/{election.id}/enroll/",
+            {"voter_ids": [voter.pk, 99999]},
+            format="json",
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["added"] == 1
+        assert data["unknown_voter_ids"] == [99999]
+
+
+@pytest.mark.django_db
+class TestUnenrollVotersView:
+    def test_admin_unenrolls_voters_and_blocks_voted_ones(
+        self, make_user, make_election, make_voter, make_enrollment, make_ballot
+    ):
+        admin = make_user(email="admin-unenroll@test.com", role="admin")
+        election = make_election()
+        removable = make_voter(student_number="2021-44444")
+        make_enrollment(election, removable)
+        voted = make_voter(student_number="2021-55555")
+        make_enrollment(election, voted)
+        make_ballot(election, voted)
+
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = client.post(
+            f"/api/admin/election-voter-roster/{election.id}/unenroll/",
+            {"voter_ids": [removable.pk, voted.pk]},
+            format="json",
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["removed"] == 1
+        assert data["blocked_has_ballot"] == [voted.pk]
+
+
+@pytest.mark.django_db
+class TestClearRosterView:
+    def test_admin_clears_non_candidate_enrollments(
+        self, make_user, make_election, make_voter, make_enrollment
+    ):
+        admin = make_user(email="admin-clear@test.com", role="admin")
+        election = make_election()
+        voter = make_voter(student_number="2021-66666")
+        make_enrollment(election, voter)
+
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = client.post(f"/api/admin/election-voter-roster/{election.id}/clear/")
+        assert response.status_code == 200
+        assert not ElectionEnrollment.objects.filter(election=election, voter=voter).exists()
+
+    def test_blocked_when_ballots_exist(
+        self, make_user, make_election, make_voter, make_enrollment, make_ballot
+    ):
+        admin = make_user(email="admin-clear2@test.com", role="admin")
+        election = make_election()
+        voter = make_voter(student_number="2021-77777")
+        make_enrollment(election, voter)
+        make_ballot(election, voter)
+
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = client.post(f"/api/admin/election-voter-roster/{election.id}/clear/")
+        assert response.status_code == 409
+        assert ElectionEnrollment.objects.filter(election=election, voter=voter).exists()

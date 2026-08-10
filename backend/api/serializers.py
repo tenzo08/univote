@@ -1,7 +1,8 @@
+from django.db import transaction
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from api.models import User, Voter
+from api.models import Candidate, Election, Position, User, Voter
 
 
 def _full_name(user):
@@ -50,3 +51,146 @@ class UserSerializer(serializers.ModelSerializer):
 
 class ChangePasswordSerializer(serializers.Serializer):
     new_password = serializers.CharField(write_only=True)
+
+
+# --- Elections ---------------------------------------------------------------
+
+
+class PositionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Position
+        fields = ["id", "title", "max_votes", "order"]
+
+
+class PositionWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Position
+        fields = ["title", "max_votes", "order"]
+
+
+class ElectionSerializer(serializers.ModelSerializer):
+    """Read side. Relies on the view annotating candidate_count/
+    enrolled_count/ballot_count on every queryset it uses — these fields
+    read straight off the annotated instance, they aren't computed here."""
+
+    positions = PositionSerializer(many=True, read_only=True)
+    candidate_count = serializers.IntegerField(read_only=True)
+    enrolled_count = serializers.IntegerField(read_only=True)
+    ballot_count = serializers.IntegerField(read_only=True)
+    is_open_for_voting = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = Election
+        fields = [
+            "id",
+            "title",
+            "description",
+            "status",
+            "opens_at",
+            "closes_at",
+            "published_at",
+            "created_at",
+            "candidate_count",
+            "enrolled_count",
+            "ballot_count",
+            "is_open_for_voting",
+            "positions",
+        ]
+
+
+class ElectionWriteSerializer(serializers.ModelSerializer):
+    """POST accepts nested positions so an election is created in one round
+    trip. PATCH reuses this serializer in partial mode; positions (if sent)
+    are silently ignored on update — spec restricts PATCH to
+    title/description/opens_at/closes_at, positions are only ever added via
+    the dedicated add-position endpoint."""
+
+    positions = PositionWriteSerializer(many=True, required=False)
+
+    class Meta:
+        model = Election
+        fields = ["id", "title", "description", "opens_at", "closes_at", "positions"]
+        read_only_fields = ["id"]
+
+    def validate(self, attrs):
+        opens_at = attrs.get("opens_at", getattr(self.instance, "opens_at", None))
+        closes_at = attrs.get("closes_at", getattr(self.instance, "closes_at", None))
+        if opens_at and closes_at and closes_at <= opens_at:
+            raise serializers.ValidationError(
+                {"closes_at": "Must be after opens_at."}
+            )
+        positions = attrs.get("positions")
+        if positions:
+            titles = [p["title"] for p in positions]
+            if len(titles) != len(set(titles)):
+                raise serializers.ValidationError(
+                    {"positions": "Position titles must be unique within an election."}
+                )
+        return attrs
+
+    def create(self, validated_data):
+        positions_data = validated_data.pop("positions", [])
+        with transaction.atomic():
+            election = Election.objects.create(**validated_data)
+            for position_data in positions_data:
+                Position.objects.create(election=election, **position_data)
+        return election
+
+    def update(self, instance, validated_data):
+        validated_data.pop("positions", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
+
+class AddPositionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Position
+        fields = ["id", "title", "max_votes", "order"]
+        read_only_fields = ["id"]
+
+
+# --- Candidates ----------------------------------------------------------------
+
+
+class CandidateSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+    student_number = serializers.CharField(source="voter.student_number", read_only=True)
+    position = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = Candidate
+        fields = ["id", "position", "full_name", "student_number", "platform", "photo"]
+
+    def get_full_name(self, obj):
+        return _full_name(obj.voter.user)
+
+
+class CandidateRegisterSerializer(serializers.Serializer):
+    """Identity is the student number, never first/last name. position/
+    election match is plain field validation, so it lives here rather than
+    the service — register_candidate() owns the decisions (voter
+    resolution, auto-enrollment, published-election lock)."""
+
+    student_number = serializers.CharField()
+    position = serializers.PrimaryKeyRelatedField(queryset=Position.objects.all())
+    platform = serializers.CharField(required=False, allow_blank=True, default="")
+    photo = serializers.ImageField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        election = self.context["election"]
+        if attrs["position"].election_id != election.id:
+            raise serializers.ValidationError(
+                {"position": "This position does not belong to this election."}
+            )
+        return attrs
+
+
+class CandidateUpdateSerializer(serializers.ModelSerializer):
+    """Platform and photo only — never the voter or the position. Plain
+    field mutation, no service function needed."""
+
+    class Meta:
+        model = Candidate
+        fields = ["platform", "photo"]
