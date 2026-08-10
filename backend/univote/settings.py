@@ -50,6 +50,11 @@ RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
+# Set before api/migrations/0001_initial.py was generated (Phase 1). Do not
+# change this on a database that has already migrated — swapping the user
+# model after the fact means starting the database over.
+AUTH_USER_MODEL = "api.User"
+
 # --- Applications -------------------------------------------------------------
 
 INSTALLED_APPS = [
