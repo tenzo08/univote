@@ -1,0 +1,88 @@
+# =============================================================================
+#  LOCAL-ONLY WORKING FILES  —  never pushed to origin
+# =============================================================================
+# The spec docs, the agent instruction file, the push checklist, and the
+# legacy clone are all working material. README.md is the ONLY markdown file
+# that belongs in the repository.
+
+docs/
+legacy/
+CLAUDE.md
+AGENTS.md
+PUSH-CHECKLIST.md
+WORKING-CONTEXT.md
+*.local.md
+.plan/
+.ecc/
+.claude/settings.local.json
+
+# Ignore README.md anywhere EXCEPT the repo root. Scaffolders (create-vite,
+# django-admin, etc.) regenerate nested README.md files; without this they'd
+# ship untracked, silently violating "README.md is the only markdown file
+# that belongs in the repository."
+**/README.md
+!/README.md
+
+# =============================================================================
+#  Python / Django
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+db.sqlite3
+db.sqlite3-journal
+*.sqlite3
+
+media/
+staticfiles/
+.static/
+
+# =============================================================================
+#  Node / React / Vite
+# =============================================================================
+node_modules/
+.vite/
+frontend/dist/
+frontend/build/
+*.tsbuildinfo
+.eslintcache
+
+# =============================================================================
+#  Environment & secrets  —  NEVER commit these
+# =============================================================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# =============================================================================
+#  Editors & OS
+# =============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# =============================================================================
+#  Test & coverage artifacts
+# =============================================================================
+.pytest_cache/
+.coverage
+htmlcov/
+coverage/
+.tox/
