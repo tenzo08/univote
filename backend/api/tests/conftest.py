@@ -17,6 +17,20 @@ from api.models import (
 )
 
 
+def pytest_configure():
+    """Real PBKDF2 hashing (Django's default) makes any test that creates
+    many users — e.g. test_seed_demo.py's ~65 accounts per run — dominate
+    the whole suite's runtime. Swapping to the fast MD5 hasher only for the
+    test process (production settings.py is untouched) cuts that file's
+    runtime from minutes to seconds without changing what any test
+    asserts — MD5PasswordHasher implements the same
+    set_password/check_password contract, just without the deliberate
+    slowness that's the whole point of PBKDF2 in production."""
+    from django.conf import settings
+
+    settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
+
 @pytest.fixture
 def make_user(db):
     def _make_user(email="voter1@test.com", username=None, role=User.Role.VOTER, **kwargs):
