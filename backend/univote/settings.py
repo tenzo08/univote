@@ -118,6 +118,14 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
+            # Django's default sqlite3 test DB is an in-memory,
+            # shared-cache database — real concurrent writers against it
+            # raise an immediate, non-retryable "database table is locked"
+            # OperationalError rather than respecting PRAGMA busy_timeout,
+            # which makes Phase 5's genuine-thread double-submit test flaky.
+            # A file-backed test DB uses normal SQLite file locking instead,
+            # which busy_timeout does govern.
+            "TEST": {"NAME": BASE_DIR / "test_db.sqlite3"},
         }
     }
 

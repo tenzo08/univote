@@ -1,4 +1,8 @@
+import threading
+
 import pytest
+from django.db import connection
+from rest_framework.test import APIClient
 
 from api.models import Ballot, BallotSelection, Election, ElectionEnrollment
 from api.services.balloting import can_voter_cast, cast_ballot
@@ -313,4 +317,380 @@ class TestCastBallot:
             cast_ballot(
                 voter, election, [{"position_id": position.id, "candidate_ids": [candidate.id]}]
             )
+        assert Ballot.objects.filter(election=election, voter=voter).count() == 1
+
+
+@pytest.mark.django_db
+class TestBallotSessionView:
+    def _setup(self, make_election, make_position, make_candidate, make_voter, make_enrollment):
+        election = _open_election(make_election)
+        position = make_position(election=election, title="President", max_votes=1)
+        candidate = make_candidate(
+            election=election, position=position, voter=make_voter(student_number="cand-bs")
+        )
+        voter = make_voter(student_number="voter-bs")
+        make_enrollment(election, voter)
+        return election, position, candidate, voter
+
+    def test_returns_null_election_when_nothing_published(self, make_voter):
+        voter = make_voter(student_number="voter-none")
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = client.get("/api/voters/ballot-session/")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["election"] is None
+        assert data["is_enrolled"] is False
+        assert data["has_voted"] is False
+        assert data["can_vote"] is False
+        assert data["receipt_code"] is None
+        assert data["positions"] == []
+
+    def test_happy_path_returns_full_session(
+        self, make_election, make_position, make_candidate, make_voter, make_enrollment
+    ):
+        election, position, candidate, voter = self._setup(
+            make_election, make_position, make_candidate, make_voter, make_enrollment
+        )
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = client.get("/api/voters/ballot-session/")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["election"]["id"] == election.id
+        assert data["is_enrolled"] is True
+        assert data["has_voted"] is False
+        assert data["can_vote"] is True
+        assert data["receipt_code"] is None
+        assert data["positions"][0]["title"] == "President"
+        assert data["positions"][0]["candidates"][0]["id"] == candidate.id
+        assert "full_name" in data["positions"][0]["candidates"][0]
+        assert "student_number" in data["positions"][0]["candidates"][0]
+
+    def test_has_voted_returns_receipt_code(
+        self, make_election, make_position, make_candidate, make_voter, make_enrollment, make_ballot
+    ):
+        election, position, candidate, voter = self._setup(
+            make_election, make_position, make_candidate, make_voter, make_enrollment
+        )
+        ballot = make_ballot(election, voter)
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = client.get("/api/voters/ballot-session/")
+
+        data = response.json()
+        assert data["has_voted"] is True
+        assert data["can_vote"] is False
+        assert data["receipt_code"] == ballot.receipt_code
+
+    def test_must_change_password_can_view_but_cannot_vote(
+        self, make_election, make_position, make_candidate, make_voter, make_enrollment
+    ):
+        election, position, candidate, voter = self._setup(
+            make_election, make_position, make_candidate, make_voter, make_enrollment
+        )
+        voter.user.must_change_password = True
+        voter.user.save()
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = client.get("/api/voters/ballot-session/")
+
+        assert response.status_code == 200
+        assert response.json()["can_vote"] is False
+
+    def test_non_voter_forbidden(self, make_user):
+        admin = make_user(email="admin-bs@test.com", role="admin")
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = client.get("/api/voters/ballot-session/")
+        assert response.status_code == 403
+
+    def test_requires_authentication(self):
+        response = APIClient().get("/api/voters/ballot-session/")
+        assert response.status_code == 401
+
+
+@pytest.mark.django_db
+class TestCastBallotView:
+    def _setup(self, make_election, make_position, make_candidate, make_voter, make_enrollment):
+        election = _open_election(make_election)
+        position = make_position(election=election, title="President", max_votes=1)
+        candidate = make_candidate(
+            election=election, position=position, voter=make_voter(student_number="cand-cb")
+        )
+        voter = make_voter(student_number="voter-cb")
+        make_enrollment(election, voter)
+        return election, position, candidate, voter
+
+    def _post(self, client, selections):
+        return client.post(
+            "/api/voters/cast-ballot/", {"selections": selections}, format="json"
+        )
+
+    def test_happy_path_returns_201_with_receipt_code(
+        self, make_election, make_position, make_candidate, make_voter, make_enrollment
+    ):
+        election, position, candidate, voter = self._setup(
+            make_election, make_position, make_candidate, make_voter, make_enrollment
+        )
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = self._post(
+            client, [{"position_id": position.id, "candidate_ids": [candidate.id]}]
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["detail"] == "Your ballot has been recorded."
+        assert data["receipt_code"]
+        ballot = Ballot.objects.get(election=election, voter=voter)
+        assert data["receipt_code"] == ballot.receipt_code
+
+    def test_undervote_accepted(
+        self, make_election, make_position, make_candidate, make_voter, make_enrollment
+    ):
+        election, position, candidate, voter = self._setup(
+            make_election, make_position, make_candidate, make_voter, make_enrollment
+        )
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = self._post(client, [{"position_id": position.id, "candidate_ids": []}])
+
+        assert response.status_code == 201
+        assert BallotSelection.objects.filter(ballot__election=election).count() == 0
+
+    def test_omitting_a_position_is_accepted(
+        self, make_election, make_position, make_candidate, make_voter, make_enrollment
+    ):
+        election, position, candidate, voter = self._setup(
+            make_election, make_position, make_candidate, make_voter, make_enrollment
+        )
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = self._post(client, [])
+
+        assert response.status_code == 201
+        assert Ballot.objects.filter(election=election, voter=voter).exists()
+
+    def test_election_not_open_returns_400(self, make_election, make_voter):
+        election = make_election(status=Election.Status.DRAFT)
+        voter = make_voter(student_number="voter-notopen")
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = self._post(client, [])
+        assert response.status_code == 400
+
+    def test_not_enrolled_returns_403(self, make_election, make_voter):
+        election = _open_election(make_election)
+        voter = make_voter(student_number="voter-notenrolled")
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = self._post(client, [])
+        assert response.status_code == 403
+
+    def test_already_voted_returns_400(
+        self,
+        make_election,
+        make_position,
+        make_candidate,
+        make_voter,
+        make_enrollment,
+        make_ballot,
+    ):
+        election, position, candidate, voter = self._setup(
+            make_election, make_position, make_candidate, make_voter, make_enrollment
+        )
+        make_ballot(election, voter)
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = self._post(
+            client, [{"position_id": position.id, "candidate_ids": [candidate.id]}]
+        )
+        assert response.status_code == 400
+
+    def test_position_not_in_election_returns_400(
+        self, make_election, make_position, make_candidate, make_voter, make_enrollment
+    ):
+        election, position, candidate, voter = self._setup(
+            make_election, make_position, make_candidate, make_voter, make_enrollment
+        )
+        other_election = make_election(title="Other")
+        other_position = make_position(election=other_election, title="Senator")
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = self._post(client, [{"position_id": other_position.id, "candidate_ids": []}])
+        assert response.status_code == 400
+
+    def test_duplicate_position_returns_400(
+        self, make_election, make_position, make_candidate, make_voter, make_enrollment
+    ):
+        election, position, candidate, voter = self._setup(
+            make_election, make_position, make_candidate, make_voter, make_enrollment
+        )
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = self._post(
+            client,
+            [
+                {"position_id": position.id, "candidate_ids": []},
+                {"position_id": position.id, "candidate_ids": []},
+            ],
+        )
+        assert response.status_code == 400
+
+    def test_too_many_candidates_returns_400(
+        self, make_election, make_position, make_candidate, make_voter, make_enrollment
+    ):
+        election, position, candidate, voter = self._setup(
+            make_election, make_position, make_candidate, make_voter, make_enrollment
+        )
+        other_candidate = make_candidate(
+            election=election, position=position, voter=make_voter(student_number="cand-cb2")
+        )
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = self._post(
+            client,
+            [{"position_id": position.id, "candidate_ids": [candidate.id, other_candidate.id]}],
+        )
+        assert response.status_code == 400
+
+    def test_duplicate_candidate_returns_400(
+        self, make_election, make_position, make_candidate, make_voter, make_enrollment
+    ):
+        election, position, candidate, voter = self._setup(
+            make_election, make_position, make_candidate, make_voter, make_enrollment
+        )
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = self._post(
+            client,
+            [{"position_id": position.id, "candidate_ids": [candidate.id, candidate.id]}],
+        )
+        assert response.status_code == 400
+
+    def test_candidate_wrong_position_returns_400(
+        self, make_election, make_position, make_candidate, make_voter, make_enrollment
+    ):
+        election, position, candidate, voter = self._setup(
+            make_election, make_position, make_candidate, make_voter, make_enrollment
+        )
+        other_position = make_position(election=election, title="Senator", max_votes=1)
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = self._post(
+            client, [{"position_id": other_position.id, "candidate_ids": [candidate.id]}]
+        )
+        assert response.status_code == 400
+
+    def test_must_change_password_forbidden(
+        self, make_election, make_position, make_candidate, make_voter, make_enrollment
+    ):
+        election, position, candidate, voter = self._setup(
+            make_election, make_position, make_candidate, make_voter, make_enrollment
+        )
+        voter.user.must_change_password = True
+        voter.user.save()
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = self._post(
+            client, [{"position_id": position.id, "candidate_ids": [candidate.id]}]
+        )
+        assert response.status_code == 403
+
+    def test_non_voter_forbidden(self, make_user):
+        admin = make_user(email="admin-cb@test.com", role="admin")
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = self._post(client, [])
+        assert response.status_code == 403
+
+    def test_requires_authentication(self):
+        response = APIClient().post(
+            "/api/voters/cast-ballot/", {"selections": []}, format="json"
+        )
+        assert response.status_code == 401
+
+    def test_malformed_body_missing_selections_returns_400(self, make_voter):
+        voter = make_voter(student_number="voter-malformed")
+        client = APIClient()
+        client.force_authenticate(user=voter.user)
+        response = client.post("/api/voters/cast-ballot/", {}, format="json")
+        assert response.status_code == 400
+
+
+@pytest.mark.django_db(transaction=True)
+class TestCastBallotConcurrency:
+    """transaction=True (not the default django_db) is required: plain
+    django_db wraps the whole test in one uncommitted outer transaction that
+    every thread would implicitly share, which would hide the race
+    entirely — both submissions would see the same pre-commit snapshot
+    instead of racing against each other's real writes.
+
+    SQLite serializes concurrent writers at the file-lock level rather than
+    truly interleaving them the way Postgres would under MVCC — so this
+    test proves the *view* never turns the Ballot unique_together race into
+    a 500 (the actual regression this phase is guarding against), not that
+    the two requests execute in true parallel. The unique-constraint catch
+    itself is already proven correct at the service level in
+    TestCastBallot::test_integrity_error_on_race_becomes_already_voted_error.
+    Logged as a deliberate SQLite-vs-Postgres tradeoff in docs/PROGRESS.md
+    rather than silently assumed equivalent."""
+
+    def test_concurrent_double_submit_yields_one_ballot_and_no_500(
+        self, make_election, make_position, make_candidate, make_voter, make_enrollment
+    ):
+        election = _open_election(make_election)
+        position = make_position(election=election, title="President", max_votes=1)
+        candidate = make_candidate(
+            election=election, position=position, voter=make_voter(student_number="cand-race")
+        )
+        voter = make_voter(student_number="voter-race")
+        make_enrollment(election, voter)
+
+        barrier = threading.Barrier(2)
+        status_codes = []
+        lock = threading.Lock()
+
+        def _submit():
+            connection.close()  # force a fresh connection for this thread
+            # SQLite's default busy handler doesn't retry on the table-level
+            # lock two genuinely concurrent writers hit here; without this
+            # pragma the loser gets an immediate OperationalError instead of
+            # waiting for the winner's transaction to commit, which is not
+            # the race this test exists to prove — that one is the Ballot
+            # unique_together IntegrityError the service layer already
+            # translates into AlreadyVotedError.
+            connection.ensure_connection()
+            with connection.cursor() as cursor:
+                cursor.execute("PRAGMA busy_timeout = 20000")
+            try:
+                client = APIClient()
+                client.force_authenticate(user=voter.user)
+                barrier.wait(timeout=5)
+                response = client.post(
+                    "/api/voters/cast-ballot/",
+                    {
+                        "selections": [
+                            {"position_id": position.id, "candidate_ids": [candidate.id]}
+                        ]
+                    },
+                    format="json",
+                )
+                with lock:
+                    status_codes.append(response.status_code)
+            finally:
+                connection.close()
+
+        threads = [threading.Thread(target=_submit) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert len(status_codes) == 2, "both threads must complete and report a status"
+        assert 500 not in status_codes
+        assert sorted(status_codes) == [201, 400]
         assert Ballot.objects.filter(election=election, voter=voter).count() == 1

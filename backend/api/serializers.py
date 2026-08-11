@@ -194,3 +194,21 @@ class CandidateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Candidate
         fields = ["platform", "photo"]
+
+
+# --- Voting --------------------------------------------------------------------
+
+
+class CastBallotSelectionSerializer(serializers.Serializer):
+    """Shape validation only — position/candidate ownership, max_votes, and
+    duplicate checks are cast_ballot()'s job (services/balloting.py), which
+    already implements the exact 8-step order 03-API-SPEC.md specifies."""
+
+    position_id = serializers.IntegerField()
+    candidate_ids = serializers.ListField(
+        child=serializers.IntegerField(), allow_empty=True, default=list
+    )
+
+
+class CastBallotSerializer(serializers.Serializer):
+    selections = CastBallotSelectionSerializer(many=True)

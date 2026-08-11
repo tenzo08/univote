@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
 from api.services.exceptions import (
+    AlreadyVotedError,
     CandidateAlreadyRegisteredError,
     CandidateHasSelectionsError,
     CsvEncodingError,
@@ -17,7 +18,11 @@ from api.services.exceptions import (
     DuplicatePositionTitleError,
     ElectionHasBallotsError,
     ElectionLockedError,
+    ElectionNotOpenError,
     HasBallotsError,
+    InvalidPositionError,
+    InvalidSelectionError,
+    NotEnrolledError,
     PublishNotReadyError,
     VoterNotFoundError,
 )
@@ -31,6 +36,14 @@ EXCEPTION_STATUS_MAP = {
     CsvEncodingError: status.HTTP_400_BAD_REQUEST,
     CandidateAlreadyRegisteredError: status.HTTP_400_BAD_REQUEST,
     DuplicatePositionTitleError: status.HTTP_400_BAD_REQUEST,
+    ElectionNotOpenError: status.HTTP_400_BAD_REQUEST,
+    AlreadyVotedError: status.HTTP_400_BAD_REQUEST,
+    InvalidPositionError: status.HTTP_400_BAD_REQUEST,
+    InvalidSelectionError: status.HTTP_400_BAD_REQUEST,
+    # 03-API-SPEC.md step 2 calls this one out as 403, not 400 like its
+    # BallotingError siblings — not enrolled is an authorization failure,
+    # not a malformed-request one.
+    NotEnrolledError: status.HTTP_403_FORBIDDEN,
     VoterNotFoundError: status.HTTP_404_NOT_FOUND,
     HasBallotsError: status.HTTP_409_CONFLICT,
     ElectionHasBallotsError: status.HTTP_409_CONFLICT,

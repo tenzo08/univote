@@ -18,6 +18,7 @@ from api.views.roster import (
     UnenrollVotersView,
     VoterCsvUploadView,
 )
+from api.views.voting import BallotSessionView, CastBallotView
 
 urlpatterns = [
     path("auth/login/", EmailTokenObtainPairView.as_view(), name="auth-login"),
@@ -75,4 +76,6 @@ urlpatterns = [
         ClearRosterView.as_view(),
         name="election-voter-roster-clear",
     ),
+    path("voters/ballot-session/", BallotSessionView.as_view(), name="ballot-session"),
+    path("voters/cast-ballot/", CastBallotView.as_view(), name="cast-ballot"),
 ]
