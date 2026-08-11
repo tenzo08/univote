@@ -1,8 +1,12 @@
+from datetime import datetime, timezone as dt_timezone
+
 import pytest
 
 from api.models import Ballot, BallotSelection
 from api.services.tallying import (
+    can_view_results,
     compute_results,
+    compute_timeline,
     compute_turnout,
     compute_turnout_breakdown,
 )
@@ -16,6 +20,13 @@ def _cast(election, voter, position, candidates):
     ballot, _ = Ballot.objects.get_or_create(election=election, voter=voter)
     for candidate in candidates:
         BallotSelection.objects.create(ballot=ballot, position=position, candidate=candidate)
+    return ballot
+
+
+def _ballot_at(election, voter, when):
+    ballot = Ballot.objects.create(election=election, voter=voter)
+    Ballot.objects.filter(pk=ballot.pk).update(submitted_at=when)
+    ballot.refresh_from_db()
     return ballot
 
 
@@ -146,3 +157,44 @@ class TestComputeTurnoutBreakdown:
         election = make_election()
         breakdown = compute_turnout_breakdown(election)
         assert breakdown == {"by_year_level": [], "by_degree_program": []}
+
+
+@pytest.mark.django_db
+class TestComputeTimeline:
+    def test_buckets_by_hour_and_sorts_ascending(self, make_election, make_voter):
+        election = make_election()
+        base = datetime(2026, 9, 1, 9, 15, tzinfo=dt_timezone.utc)
+        _ballot_at(election, make_voter(student_number="1"), base)
+        _ballot_at(election, make_voter(student_number="2"), base.replace(minute=45))
+        _ballot_at(
+            election, make_voter(student_number="3"), base.replace(hour=10, minute=5)
+        )
+
+        timeline = compute_timeline(election)
+
+        assert timeline == [
+            {"hour": "2026-09-01 09:00", "count": 2},
+            {"hour": "2026-09-01 10:00", "count": 1},
+        ]
+
+    def test_empty_when_no_ballots(self, make_election):
+        election = make_election()
+        assert compute_timeline(election) == []
+
+
+@pytest.mark.django_db
+class TestCanViewResults:
+    def test_admin_always_true(self, make_user, make_election):
+        admin = make_user(email="admin-canview@test.com", role="admin")
+        election = make_election(closes_in_hours=1)
+        assert can_view_results(admin, election) is True
+
+    def test_non_admin_blocked_before_close(self, make_user, make_election):
+        auditor = make_user(email="auditor-canview@test.com", role="auditor")
+        election = make_election(closes_in_hours=1)
+        assert can_view_results(auditor, election) is False
+
+    def test_non_admin_allowed_after_close(self, make_user, make_election):
+        auditor = make_user(email="auditor-canview2@test.com", role="auditor")
+        election = make_election(opens_in_hours=-2, closes_in_hours=-1)
+        assert can_view_results(auditor, election) is True

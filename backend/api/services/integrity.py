@@ -9,7 +9,7 @@ VELOCITY_WINDOW_SECONDS = 60
 VELOCITY_THRESHOLD = 10
 
 
-def _ordered_timestamps(election):
+def ordered_ballot_timestamps(election):
     return list(
         Ballot.objects.filter(election=election)
         .order_by("submitted_at")
@@ -17,8 +17,12 @@ def _ordered_timestamps(election):
     )
 
 
-def find_rapid_succession_pairs(election):
-    timestamps = _ordered_timestamps(election)
+def find_rapid_succession_pairs(election, timestamps=None):
+    """timestamps can be passed in by a caller that also needs
+    find_velocity_bursts() on the same election, to avoid issuing the
+    identical ordered query twice — see views/analytics.py."""
+    if timestamps is None:
+        timestamps = ordered_ballot_timestamps(election)
     pairs = []
     for previous, current in zip(timestamps, timestamps[1:]):
         gap = (current - previous).total_seconds()
@@ -27,13 +31,14 @@ def find_rapid_succession_pairs(election):
     return pairs
 
 
-def find_velocity_bursts(election):
+def find_velocity_bursts(election, timestamps=None):
     """Reports one entry per distinct burst episode — the window position
     where the count first exceeds the threshold — rather than every sliding
     window position while a burst is ongoing, which would otherwise flood a
     single incident into dozens of near-duplicate entries. Not specified by
     03-API-SPEC.md; a deliberate choice, logged in docs/PROGRESS.md."""
-    timestamps = _ordered_timestamps(election)
+    if timestamps is None:
+        timestamps = ordered_ballot_timestamps(election)
     bursts = []
     start = 0
     in_burst = False

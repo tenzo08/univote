@@ -2,10 +2,21 @@
 cached or denormalized, per the election-integrity invariant in CLAUDE.md."""
 
 from django.db.models import Count
+from django.db.models.functions import TruncHour
+from django.utils import timezone
 
-from api.models import Ballot, BallotSelection, ElectionEnrollment
+from api.models import Ballot, BallotSelection, ElectionEnrollment, User
 
 SMALL_GROUP_THRESHOLD = 5
+
+
+def can_view_results(user, election):
+    """Non-admins are gated until closes_at has passed — live results
+    during an open election influence turnout (03-API-SPEC.md). Admins
+    always see them."""
+    if user.role == User.Role.ADMIN:
+        return True
+    return timezone.now() > election.closes_at
 
 
 def _candidate_display_name(candidate):
@@ -100,3 +111,19 @@ def compute_turnout_breakdown(election):
         "by_year_level": _group_turnout(election, "year_level"),
         "by_degree_program": _group_turnout(election, "degree_program"),
     }
+
+
+def compute_timeline(election):
+    """Hourly ballot counts, ascending. Only hours with at least one ballot
+    appear — no zero-filled gaps, per 03-API-SPEC.md's example."""
+    rows = (
+        Ballot.objects.filter(election=election)
+        .annotate(hour=TruncHour("submitted_at"))
+        .values("hour")
+        .annotate(count=Count("id"))
+        .order_by("hour")
+    )
+    return [
+        {"hour": row["hour"].strftime("%Y-%m-%d %H:%M"), "count": row["count"]}
+        for row in rows
+    ]

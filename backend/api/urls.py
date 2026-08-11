@@ -1,6 +1,12 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
+from api.views.analytics import (
+    IntegrityReportView,
+    ResultsView,
+    TimelineView,
+    TurnoutView,
+)
 from api.views.auth import ChangePasswordView, EmailTokenObtainPairView, MeView
 from api.views.candidates import CandidateDetailView, CandidateListCreateView
 from api.views.elections import (
@@ -78,4 +84,20 @@ urlpatterns = [
     ),
     path("voters/ballot-session/", BallotSessionView.as_view(), name="ballot-session"),
     path("voters/cast-ballot/", CastBallotView.as_view(), name="cast-ballot"),
+    path(
+        "elections/<int:election_id>/results/", ResultsView.as_view(), name="election-results"
+    ),
+    path(
+        "elections/<int:election_id>/turnout/", TurnoutView.as_view(), name="election-turnout"
+    ),
+    path(
+        "elections/<int:election_id>/timeline/",
+        TimelineView.as_view(),
+        name="election-timeline",
+    ),
+    path(
+        "elections/<int:election_id>/integrity-report/",
+        IntegrityReportView.as_view(),
+        name="election-integrity-report",
+    ),
 ]
