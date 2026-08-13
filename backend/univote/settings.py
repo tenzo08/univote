@@ -205,3 +205,14 @@ REST_FRAMEWORK = {
 # --- Proxy / deployment -----------------------------------------------------------
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# HTTPS-only hardening — off in local dev (plain http://localhost), on
+# whenever DEBUG is False. Render terminates SSL and forwards via the
+# X-Forwarded-Proto header above, so these are safe to enable together with
+# it. Caught by `python manage.py check --deploy` (W004/W008/W012/W016).
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 3600
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
