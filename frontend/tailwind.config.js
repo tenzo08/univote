@@ -9,7 +9,7 @@ export default {
         rule: "#D8D4CA",
         stamp: "#C2402E",
         seal: "#1F5C4A",
-        graph: "#7B8CA6",
+        graph: "#657388",
       },
       fontFamily: {
         display: ["Oswald", "sans-serif"],
