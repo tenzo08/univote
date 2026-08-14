@@ -31,7 +31,7 @@ function CsvUpload({ electionId }) {
   }
 
   return (
-    <div className="mb-6 rounded border border-rule p-4">
+    <div className="mb-6 rounded-xl border border-rule bg-sheet p-4 shadow-card">
       <label className="block">
         <span className="mb-1 block text-sm font-body text-ink">Upload voter roster CSV</span>
         <input type="file" accept=".csv" onChange={handleFileChange} className="text-sm font-body text-ink" />
@@ -193,21 +193,22 @@ export default function Roster() {
       )}
 
       {!isLoading && !isError && results.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-rule bg-sheet shadow-card">
         <table className="w-full border-collapse text-sm font-body text-ink">
           <thead>
             <tr className="border-b border-rule text-left font-data text-xs uppercase text-graph">
-              <th className="py-2 pr-2"></th>
+              <th className="py-2 pl-4 pr-2"></th>
               <th className="py-2 pr-2">Student number</th>
               <th className="py-2 pr-2">Name</th>
               <th className="py-2 pr-2">Year</th>
               <th className="py-2 pr-2">Program</th>
-              <th className="py-2 pr-2">Status</th>
+              <th className="py-2 pr-4">Status</th>
             </tr>
           </thead>
           <tbody>
             {results.map((voter) => (
-              <tr key={voter.id} className="border-b border-rule">
-                <td className="py-2 pr-2">
+              <tr key={voter.id} className="border-b border-rule transition-colors hover:bg-gold/10">
+                <td className="py-2 pl-4 pr-2">
                   <input
                     type="checkbox"
                     disabled={voter.has_ballot}
@@ -237,6 +238,7 @@ export default function Roster() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       {count > PAGE_SIZE && (

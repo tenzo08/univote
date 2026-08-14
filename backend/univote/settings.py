@@ -178,6 +178,14 @@ CSRF_TRUSTED_ORIGINS = [
 
 AUTHENTICATION_BACKENDS = ["api.backends.EmailCaseInsensitiveBackend"]
 
+# Login is refused for any email outside this domain, even if the account
+# exists and the password is correct — enforced in
+# EmailTokenObtainPairSerializer.validate(), before authentication runs, with
+# the same generic "no active account" message wrong-password/unknown-email
+# already use (no information leak about which domain is required). Set to
+# an empty string to disable the restriction entirely.
+REQUIRED_LOGIN_EMAIL_DOMAIN = os.environ.get("DJANGO_REQUIRED_LOGIN_EMAIL_DOMAIN", "up.edu.ph")
+
 # --- REST framework / JWT --------------------------------------------------------
 
 REST_FRAMEWORK = {

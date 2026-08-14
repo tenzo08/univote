@@ -2,7 +2,7 @@
 Never run against a real election database; every account this creates has
 a known password.
 
---reset only ever touches @test.com accounts and Election rows (which
+--reset only ever touches @up.edu.ph accounts and Election rows (which
 cascade to positions/candidates/enrollments/ballots), so it's safe to run
 right after `createsuperuser` on a fresh deploy without clobbering that
 account."""
@@ -20,30 +20,51 @@ from api.services.candidates import register_candidate
 from api.services.elections import add_position, publish_election
 from api.services.enrollment import enroll
 
-DEMO_EMAIL_SUFFIX = "@test.com"
-DEGREE_PROGRAMS = ["BS Computer Science", "BS Biology", "BS Psychology", "BS Accountancy"]
-BULK_VOTER_COUNT = 63
-# Reserved index ranges within the bulk voter pool — kept separate from the
-# "leave some unenrolled" pool below so the two demo behaviors never fight
-# over the same voters (a registered candidate is always auto-enrolled).
-ARCHIVED_CANDIDATE_SLICE = slice(0, 6)
-LIVE_CANDIDATE_SLICE = slice(6, 16)
-UNENROLLED_EVERY_NTH = 7
+DEMO_EMAIL_DOMAIN = "@up.edu.ph"
+
+# (first_name, last_name, local-part, student_number, year_level, degree_program)
+ARCHIVED_CANDIDATES = [
+    ("Andres", "Villanueva", "andres.villanueva", "2021-00521", "4", "BS Computer Science"),
+    ("Carmela", "Reyes", "carmela.reyes", "2021-00734", "4", "BA Political Science"),
+    ("Ramon", "Bautista", "ramon.bautista", "2020-01122", "4", "BS Civil Engineering"),
+    ("Lourdes", "Aquino", "lourdes.aquino", "2020-00893", "4", "BS Biology"),
+]
+LIVE_CANDIDATES = [
+    ("Diego", "Mercado", "diego.mercado", "2022-01340", "3", "BS Electrical Engineering"),
+    ("Patricia", "Gonzales", "patricia.gonzales", "2022-00456", "3", "BS Psychology"),
+    ("Joaquin", "Del Rosario", "joaquin.delrosario", "2021-01899", "3", "BS Accountancy"),
+    ("Bianca", "Torres", "bianca.torres", "2021-02011", "3", "BA Broadcast Communication"),
+    ("Emilio", "Cruz", "emilio.cruz", "2022-00987", "2", "BS Applied Mathematics"),
+    ("Sofia", "Manalo", "sofia.manalo", "2022-01765", "2", "BS Statistics"),
+]
+GENERAL_ELECTORATE = [
+    ("Rafael", "Domingo", "rafael.domingo", "2023-00234", "1", "BS Computer Science"),
+    ("Angelica", "Pascual", "angelica.pascual", "2023-00567", "1", "BS Biology"),
+    ("Marco", "Villareal", "marco.villareal", "2020-01456", "4", "BS Civil Engineering"),
+    ("Nicole", "Sarmiento", "nicole.sarmiento", "2021-01023", "3", "BA Political Science"),
+    ("Vicente", "Ocampo", "vicente.ocampo", "2022-00678", "2", "BS Electrical Engineering"),
+    ("Katrina", "Salazar", "katrina.salazar", "2023-00891", "1", "BS Psychology"),
+    ("Leandro", "Navarro", "leandro.navarro", "2020-00345", "4", "BS Accountancy"),
+    ("Michaela", "Ignacio", "michaela.ignacio", "2021-01678", "3", "BS Applied Mathematics"),
+]
+# Left enrolled=False so the roster demonstrates the "not every voter is
+# enrolled yet" state — a real, common admin-workflow moment, not a bug.
+UNENROLLED_LOCAL_PARTS = {"leandro.navarro"}
 
 
 class Command(BaseCommand):
-    help = "Seed demo accounts, three elections, a voter roster, and staggered ballots."
+    help = "Seed named @up.edu.ph accounts, three elections, a voter roster, and ballots."
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--reset",
             action="store_true",
-            help="Delete existing @test.com accounts and all elections before seeding.",
+            help="Delete existing @up.edu.ph accounts and all elections before seeding.",
         )
 
     def handle(self, *args, **options):
         already_seeded = (
-            User.objects.filter(email__iendswith=DEMO_EMAIL_SUFFIX).exists()
+            User.objects.filter(email__iendswith=DEMO_EMAIL_DOMAIN).exists()
             or Election.objects.exists()
         )
         if already_seeded and not options["reset"]:
@@ -61,24 +82,39 @@ class Command(BaseCommand):
 
     def _reset(self):
         Election.objects.all().delete()
-        User.objects.filter(email__iendswith=DEMO_EMAIL_SUFFIX).delete()
+        User.objects.filter(email__iendswith=DEMO_EMAIL_DOMAIN).delete()
 
     # -- account creation ---------------------------------------------------
 
-    def _create_voter(self, email, student_number, password, must_change_password=True):
+    def _create_voter(
+        self,
+        first_name,
+        last_name,
+        local_part,
+        student_number,
+        year_level,
+        degree_program,
+        password=None,
+        must_change_password=True,
+    ):
         user = User.objects.create_user(
-            email=email,
+            email=f"{local_part}{DEMO_EMAIL_DOMAIN}",
             username=student_number,
-            password=password,
+            password=password or student_number,
             role=User.Role.VOTER,
             must_change_password=must_change_password,
+            first_name=first_name,
+            last_name=last_name,
         )
         return Voter.objects.create(
             user=user,
             student_number=student_number,
-            year_level=random.choice(["1", "2", "3", "4"]),
-            degree_program=random.choice(DEGREE_PROGRAMS),
+            year_level=year_level,
+            degree_program=degree_program,
         )
+
+    def _create_voters(self, entries):
+        return [self._create_voter(*entry) for entry in entries]
 
     # -- election building ----------------------------------------------------
 
@@ -88,16 +124,13 @@ class Command(BaseCommand):
             title=title, opens_at=now + opens_delta, closes_at=now + closes_delta
         )
 
-    def _staff_positions_and_candidates(self, election, candidate_voters, extra_voter=None):
+    def _staff_positions_and_candidates(self, election, candidate_voters):
         president = add_position(election, title="President", max_votes=1, order=0)
         senator = add_position(election, title="Senator", max_votes=2, order=1)
-        pool = list(candidate_voters)
-        for voter in pool[:2]:
+        for voter in candidate_voters[:2]:
             register_candidate(election, president, voter.student_number)
-        for voter in pool[2:]:
+        for voter in candidate_voters[2:]:
             register_candidate(election, senator, voter.student_number)
-        if extra_voter is not None:
-            register_candidate(election, president, extra_voter.student_number)
         return president, senator
 
     # -- ballots ---------------------------------------------------------------
@@ -147,39 +180,55 @@ class Command(BaseCommand):
 
     def _seed(self):
         User.objects.create_superuser(
-            email="admin@test.com",
-            username="admin",
-            password="DemoAdmin123!",
+            email=f"isabel.fernandez{DEMO_EMAIL_DOMAIN}",
+            username="isabel.fernandez",
+            password="ComelecChair2026!",
             role=User.Role.ADMIN,
+            first_name="Isabel",
+            last_name="Fernandez",
         )
         User.objects.create_user(
-            email="auditor@test.com",
-            username="auditor",
-            password="DemoAuditor123!",
+            email=f"gabriel.santos{DEMO_EMAIL_DOMAIN}",
+            username="gabriel.santos",
+            password="USCAuditor2026!",
             role=User.Role.AUDITOR,
+            first_name="Gabriel",
+            last_name="Santos",
         )
-        sample_voter = self._create_voter(
-            "voter@test.com", "sample-voter", "DemoVoter123!", must_change_password=False
-        )
-        sample_candidate_voter = self._create_voter(
-            "candidate@test.com",
-            "sample-candidate",
-            "DemoCandidate123!",
+        # The two accounts the deploy guide points people to first — both
+        # frictionless (no forced password change), one already voted, one
+        # enrolled but hasn't voted yet.
+        already_voted = self._create_voter(
+            "Ana",
+            "Dela Cruz",
+            "ana.delacruz",
+            "2022-00120",
+            "3",
+            "BS Political Science",
+            password="AnaVoter2026!",
             must_change_password=False,
         )
-        bulk_voters = [
-            self._create_voter(f"bulkvoter{i}@test.com", f"bulk-{i:04d}", f"bulk-{i:04d}")
-            for i in range(BULK_VOTER_COUNT)
-        ]
+        not_yet_voted = self._create_voter(
+            "Miguel",
+            "Torres",
+            "miguel.torres",
+            "2021-00845",
+            "4",
+            "BS Biology",
+            password="MiguelVoter2026!",
+            must_change_password=False,
+        )
+
+        archived_candidates = self._create_voters(ARCHIVED_CANDIDATES)
+        live_candidates = self._create_voters(LIVE_CANDIDATES)
+        general_electorate = self._create_voters(GENERAL_ELECTORATE)
 
         archived_election = self._build_election(
             "General Election 2025",
             opens_delta=timedelta(days=-400),
             closes_delta=timedelta(days=-395),
         )
-        self._staff_positions_and_candidates(
-            archived_election, bulk_voters[ARCHIVED_CANDIDATE_SLICE]
-        )
+        self._staff_positions_and_candidates(archived_election, archived_candidates)
         publish_election(archived_election)
 
         live_election = self._build_election(
@@ -187,9 +236,7 @@ class Command(BaseCommand):
             opens_delta=timedelta(days=-3),
             closes_delta=timedelta(days=4),
         )
-        president, senator = self._staff_positions_and_candidates(
-            live_election, bulk_voters[LIVE_CANDIDATE_SLICE], extra_voter=sample_candidate_voter
-        )
+        president, senator = self._staff_positions_and_candidates(live_election, live_candidates)
         # Archives archived_election automatically — Election.publish()
         # archives every other published row by design.
         publish_election(live_election)
@@ -200,17 +247,15 @@ class Command(BaseCommand):
             closes_delta=timedelta(days=203),
         )  # left as draft — next cycle, not yet staffed
 
-        remaining_pool = bulk_voters[16:]
-        enroll(live_election, [sample_voter.pk])
-        to_enroll = [
-            voter.pk
-            for i, voter in enumerate(remaining_pool)
-            if i % UNENROLLED_EVERY_NTH != 0
+        enrolled_electorate = [
+            voter
+            for voter, entry in zip(general_electorate, GENERAL_ELECTORATE)
+            if entry[2] not in UNENROLLED_LOCAL_PARTS
         ]
-        enroll(live_election, to_enroll)
+        enroll(
+            live_election,
+            [voter.pk for voter in [already_voted, not_yet_voted] + enrolled_electorate],
+        )
 
-        to_enroll_set = set(to_enroll)
-        voting_voters = list(bulk_voters[LIVE_CANDIDATE_SLICE]) + [
-            v for v in remaining_pool if v.pk in to_enroll_set
-        ][:30]
+        voting_voters = live_candidates + enrolled_electorate + [already_voted]
         self._cast_staggered_ballots(live_election, voting_voters, president, senator)

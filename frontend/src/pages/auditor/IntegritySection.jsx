@@ -7,7 +7,7 @@ export default function IntegritySection({ electionId }) {
   const { data, isLoading, isError, error } = useIntegrityReport(electionId)
 
   return (
-    <section className="rounded border border-rule">
+    <section className="rounded-xl border border-rule bg-sheet shadow-card">
       <button
         type="button"
         onClick={() => setIsOpen((value) => !value)}
@@ -15,7 +15,12 @@ export default function IntegritySection({ electionId }) {
         className="flex w-full items-center justify-between px-4 py-3 font-display text-sm uppercase tracking-wide text-ink"
       >
         Integrity signals
-        <span aria-hidden="true">{isOpen ? '−' : '+'}</span>
+        <span
+          aria-hidden="true"
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-rule/50 font-body text-sm"
+        >
+          {isOpen ? '−' : '+'}
+        </span>
       </button>
       {isOpen && (
         <div className="border-t border-rule px-4 py-4">
@@ -23,8 +28,10 @@ export default function IntegritySection({ electionId }) {
           {isError && <p className="font-body text-sm text-graph">{extractErrorMessage(error)}</p>}
           {data && (
             <>
-              <p className="mb-4 font-body text-sm text-ink">{data.note}</p>
-              <p className="mb-3 font-body text-sm text-ink">{data.total_ballots} total ballots.</p>
+              <p className="mb-4 rounded-lg bg-gold/10 p-3 font-body text-sm text-ink">{data.note}</p>
+              <p className="mb-3 font-body text-sm text-ink">
+                <span className="font-data font-semibold">{data.total_ballots}</span> total ballots.
+              </p>
               <div className="mb-4">
                 <h4 className="mb-1 font-body text-xs uppercase text-graph">Rapid-succession pairs</h4>
                 {data.rapid_succession_pairs.length === 0 ? (

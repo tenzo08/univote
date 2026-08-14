@@ -49,7 +49,10 @@ function AddPositionForm({ electionId, disabled }) {
           className="w-20 rounded border border-rule px-3 py-2 text-base text-ink"
         />
       </label>
-      <button type="submit" className="rounded bg-maroon px-4 py-2 text-sm text-sheet transition-colors hover:bg-maroonDark">
+      <button
+        type="submit"
+        className="rounded-lg bg-gold px-4 py-2 text-sm font-bold text-ink shadow-gold transition-all hover:brightness-105 motion-safe:hover:-translate-y-0.5"
+      >
         Add position
       </button>
       {error && (
@@ -196,7 +199,7 @@ export default function ElectionSetup() {
         )}
         <AddPositionForm electionId={electionId} disabled={isPublished} />
         {positionList.map((position) => (
-          <div key={position.id} className="mb-4 rounded border border-rule p-4">
+          <div key={position.id} className="mb-4 rounded-xl border border-rule bg-sheet p-4 shadow-card">
             <h3 className="font-display text-base uppercase tracking-wide text-ink">
               {position.title}{' '}
               <span className="font-body text-xs normal-case text-graph">
@@ -227,7 +230,7 @@ export default function ElectionSetup() {
         ))}
       </section>
 
-      <section className="rounded border border-rule p-4">
+      <section className="rounded-xl border border-rule bg-sheet p-4 shadow-card">
         <h2 className="mb-3 font-display text-sm uppercase tracking-wide text-graph">Publish</h2>
         {election.status === 'draft' && readinessReasons.length > 0 && (
           <ul className="mb-3 list-inside list-disc text-sm text-graph">

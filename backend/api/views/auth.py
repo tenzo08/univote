@@ -30,7 +30,11 @@ class ChangePasswordView(APIView):
         serializer = ChangePasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            change_password(request.user, serializer.validated_data["new_password"])
+            change_password(
+                request.user,
+                serializer.validated_data["current_password"],
+                serializer.validated_data["new_password"],
+            )
         except DjangoValidationError as exc:
             return Response({"new_password": exc.messages}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"detail": "Your password has been changed."}, status=status.HTTP_200_OK)

@@ -79,6 +79,16 @@ class ElectionHasBallotsError(Exception):
     clearing a roster, this one blocks deleting an election entirely."""
 
 
+class ElectionAlreadyStartedError(Exception):
+    """Raised when updating or deleting an election whose opens_at has
+    already passed, regardless of status — a previous or current
+    election's own schedule/title shouldn't be rewritten or removed once
+    voters may already be relying on it. Separate from ElectionLockedError
+    (which gates positions/candidates on published status, not timing) and
+    from ElectionHasBallotsError (which is checked first in
+    delete_election so the more specific reason wins when both apply)."""
+
+
 class CandidateAlreadyRegisteredError(Exception):
     """Raised when the same voter is already registered as a candidate for
     that position — Candidate's unique_together(election, voter, position)

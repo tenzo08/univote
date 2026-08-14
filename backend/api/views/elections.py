@@ -20,6 +20,7 @@ from api.services.elections import (
     delete_election,
     get_active_election,
     publish_election,
+    update_election,
 )
 
 
@@ -72,7 +73,9 @@ class ElectionDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
         serializer = ElectionWriteSerializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        election = serializer.save()
+        validated_data = dict(serializer.validated_data)
+        validated_data.pop("positions", None)
+        election = update_election(instance, validated_data)
         annotated = _elections_queryset().get(pk=election.pk)
         return Response(ElectionSerializer(annotated).data)
 

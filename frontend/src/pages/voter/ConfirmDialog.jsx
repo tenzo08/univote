@@ -6,7 +6,7 @@ export default function ConfirmDialog({ positions, selections, isSubmitting, onC
       aria-labelledby="confirm-ballot-title"
       className="fixed inset-0 z-10 flex items-center justify-center bg-ink/40 px-4"
     >
-      <div className="w-full max-w-md rounded bg-sheet p-6 shadow-lg">
+      <div className="w-full max-w-md rounded-xl bg-sheet p-6 shadow-card">
         <h2 id="confirm-ballot-title" className="mb-4 font-display text-lg uppercase tracking-wide text-ink">
           Confirm your ballot
         </h2>
@@ -34,7 +34,7 @@ export default function ConfirmDialog({ positions, selections, isSubmitting, onC
             type="button"
             onClick={onConfirm}
             disabled={isSubmitting}
-            className="rounded bg-stamp px-4 py-2 text-sm text-sheet disabled:opacity-60"
+            className="rounded-lg bg-stamp px-4 py-2 text-sm font-bold text-sheet shadow-gold disabled:opacity-60"
           >
             {isSubmitting ? 'Casting…' : 'Cast ballot'}
           </button>

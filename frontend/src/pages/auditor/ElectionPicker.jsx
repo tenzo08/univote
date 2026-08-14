@@ -22,7 +22,7 @@ export default function ElectionPicker() {
         <Link
           key={election.id}
           to={`/audit/${election.id}`}
-          className="mb-3 block rounded border border-rule p-4 shadow-sm transition-colors hover:border-maroon"
+          className="mb-3 block rounded-xl border border-rule bg-sheet p-4 shadow-card transition-all hover:border-maroon hover:shadow-gold motion-safe:hover:-translate-y-0.5"
         >
           <div className="flex items-center justify-between">
             <h2 className="font-display text-lg uppercase tracking-wide text-ink">{election.title}</h2>

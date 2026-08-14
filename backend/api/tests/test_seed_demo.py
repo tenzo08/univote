@@ -29,39 +29,51 @@ class TestSeedDemo:
 
     def test_demo_accounts_created_with_expected_roles(self):
         call_command("seed_demo", "--reset")
-        admin = User.objects.get(email="admin@test.com")
-        auditor = User.objects.get(email="auditor@test.com")
-        voter = User.objects.get(email="voter@test.com")
+        admin = User.objects.get(email="isabel.fernandez@up.edu.ph")
+        auditor = User.objects.get(email="gabriel.santos@up.edu.ph")
+        voter = User.objects.get(email="ana.delacruz@up.edu.ph")
         assert admin.role == User.Role.ADMIN
         assert admin.is_superuser is True
         assert auditor.role == User.Role.AUDITOR
         assert voter.role == User.Role.VOTER
         assert Voter.objects.filter(user=voter).exists()
 
+    def test_all_seeded_accounts_are_up_edu_ph(self):
+        call_command("seed_demo", "--reset")
+        assert User.objects.count() >= 20
+        assert not User.objects.exclude(email__iendswith="@up.edu.ph").exists()
+
     def test_sample_candidate_registered_in_live_election(self):
         call_command("seed_demo", "--reset")
         live = Election.objects.get(status=Election.Status.PUBLISHED)
-        candidate_user = User.objects.get(email="candidate@test.com")
+        candidate_user = User.objects.get(email="diego.mercado@up.edu.ph")
         assert Candidate.objects.filter(
             election=live, voter__user=candidate_user
         ).exists()
 
-    def test_bulk_voters_seeded_with_roughly_one_in_seven_unenrolled(self):
+    def test_one_general_electorate_voter_left_unenrolled(self):
         call_command("seed_demo", "--reset")
         live = Election.objects.get(status=Election.Status.PUBLISHED)
-        bulk_voters = Voter.objects.filter(
-            user__email__startswith="bulkvoter"
-        )
-        assert bulk_voters.count() >= 50
-        enrolled_count = ElectionEnrollment.objects.filter(
-            election=live, voter__in=bulk_voters
-        ).count()
-        unenrolled_count = bulk_voters.count() - enrolled_count
-        assert unenrolled_count > 0
-        # "Roughly one in seven" — allow a wide tolerance rather than pin an
-        # exact ratio.
-        ratio = unenrolled_count / bulk_voters.count()
-        assert 0.08 <= ratio <= 0.25
+        unenrolled_voter = Voter.objects.get(user__email="leandro.navarro@up.edu.ph")
+        assert not ElectionEnrollment.objects.filter(
+            election=live, voter=unenrolled_voter
+        ).exists()
+        # Everyone else in the general electorate pool is enrolled.
+        enrolled_count = ElectionEnrollment.objects.filter(election=live).count()
+        assert enrolled_count >= 14
+
+    def test_already_voted_sample_account_has_cast_a_ballot(self):
+        call_command("seed_demo", "--reset")
+        live = Election.objects.get(status=Election.Status.PUBLISHED)
+        voter = Voter.objects.get(user__email="ana.delacruz@up.edu.ph")
+        assert Ballot.objects.filter(election=live, voter=voter).exists()
+
+    def test_not_yet_voted_sample_account_is_enrolled_but_has_no_ballot(self):
+        call_command("seed_demo", "--reset")
+        live = Election.objects.get(status=Election.Status.PUBLISHED)
+        voter = Voter.objects.get(user__email="miguel.torres@up.edu.ph")
+        assert ElectionEnrollment.objects.filter(election=live, voter=voter).exists()
+        assert not Ballot.objects.filter(election=live, voter=voter).exists()
 
     def test_ballots_staggered_with_realistic_timing_shape(self):
         call_command("seed_demo", "--reset")

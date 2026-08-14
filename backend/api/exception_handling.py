@@ -16,6 +16,7 @@ from api.services.exceptions import (
     CsvEncodingError,
     CsvTooLargeError,
     DuplicatePositionTitleError,
+    ElectionAlreadyStartedError,
     ElectionHasBallotsError,
     ElectionLockedError,
     ElectionNotOpenError,
@@ -48,6 +49,7 @@ EXCEPTION_STATUS_MAP = {
     HasBallotsError: status.HTTP_409_CONFLICT,
     ElectionHasBallotsError: status.HTTP_409_CONFLICT,
     CandidateHasSelectionsError: status.HTTP_409_CONFLICT,
+    ElectionAlreadyStartedError: status.HTTP_409_CONFLICT,
 }
 
 

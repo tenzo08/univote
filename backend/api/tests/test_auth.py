@@ -60,11 +60,11 @@ class TestPermissions:
 class TestLogin:
     def test_happy_path_returns_expected_shape(self, make_user):
         user = make_user(
-            email="login@test.com", role=User.Role.VOTER, first_name="Ana", last_name="Santos"
+            email="login@up.edu.ph", role=User.Role.VOTER, first_name="Ana", last_name="Santos"
         )
         response = APIClient().post(
             "/api/auth/login/",
-            {"email": "login@test.com", "password": "testpass123"},
+            {"email": "login@up.edu.ph", "password": "testpass123"},
             format="json",
         )
         assert response.status_code == 200
@@ -88,22 +88,50 @@ class TestLogin:
         assert unknown_email.status_code == 401
         assert wrong_password.json() == unknown_email.json()
 
+    def test_non_up_edu_ph_email_is_rejected_even_with_correct_password(self, make_user):
+        # Domain restriction fires before authenticate() ever runs, so a
+        # real account outside the required domain is rejected the exact
+        # same way as a wrong password — no signal that the domain check
+        # exists at all.
+        make_user(email="outsider@gmail.com")
+        client = APIClient()
+        outsider = client.post(
+            "/api/auth/login/",
+            {"email": "outsider@gmail.com", "password": "testpass123"},
+            format="json",
+        )
+        unknown_email = client.post(
+            "/api/auth/login/", {"email": "nobody@up.edu.ph", "password": "whatever"}, format="json"
+        )
+        assert outsider.status_code == 401
+        assert unknown_email.status_code == 401
+        assert outsider.json() == unknown_email.json()
+
+    def test_domain_check_is_case_insensitive(self, make_user):
+        make_user(email="caps@Up.Edu.Ph")
+        response = APIClient().post(
+            "/api/auth/login/",
+            {"email": "caps@Up.Edu.Ph", "password": "testpass123"},
+            format="json",
+        )
+        assert response.status_code == 200
+
     def test_login_is_case_insensitive_on_email(self, make_user):
         # CSV-imported voter emails keep their original casing; a voter
         # typing a different case than the roster had must still log in.
-        make_user(email="Ana.Santos@Test.com")
+        make_user(email="Ana.Santos@Up.Edu.Ph")
         response = APIClient().post(
             "/api/auth/login/",
-            {"email": "ana.santos@test.com", "password": "testpass123"},
+            {"email": "ana.santos@up.edu.ph", "password": "testpass123"},
             format="json",
         )
         assert response.status_code == 200
 
     def test_must_change_password_voter_can_still_log_in(self, make_user):
-        make_user(email="mustchange@test.com", must_change_password=True)
+        make_user(email="mustchange@up.edu.ph", must_change_password=True)
         response = APIClient().post(
             "/api/auth/login/",
-            {"email": "mustchange@test.com", "password": "testpass123"},
+            {"email": "mustchange@up.edu.ph", "password": "testpass123"},
             format="json",
         )
         assert response.status_code == 200
@@ -113,10 +141,10 @@ class TestLogin:
 @pytest.mark.django_db
 class TestRefresh:
     def test_valid_refresh_token_returns_new_access_token(self, make_user):
-        make_user(email="refresh@test.com")
+        make_user(email="refresh@up.edu.ph")
         client = APIClient()
         login = client.post(
-            "/api/auth/login/", {"email": "refresh@test.com", "password": "testpass123"}, format="json"
+            "/api/auth/login/", {"email": "refresh@up.edu.ph", "password": "testpass123"}, format="json"
         )
         response = client.post("/api/auth/refresh/", {"refresh": login.json()["refresh"]}, format="json")
         assert response.status_code == 200
@@ -154,26 +182,47 @@ class TestChangePassword:
         assert response.status_code == 401
 
     def test_success_clears_flag_and_new_password_works(self, make_user):
-        user = make_user(email="cp@test.com", must_change_password=True)
+        user = make_user(email="cp@up.edu.ph", must_change_password=True)
         client = APIClient()
         client.force_authenticate(user=user)
         response = client.post(
-            "/api/change-password/", {"new_password": "a-strong-new-pw-99"}, format="json"
+            "/api/change-password/",
+            {"current_password": "testpass123", "new_password": "a-strong-new-pw-99"},
+            format="json",
         )
         assert response.status_code == 200
         user.refresh_from_db()
         assert user.must_change_password is False
 
         login = APIClient().post(
-            "/api/auth/login/", {"email": "cp@test.com", "password": "a-strong-new-pw-99"}, format="json"
+            "/api/auth/login/", {"email": "cp@up.edu.ph", "password": "a-strong-new-pw-99"}, format="json"
         )
         assert login.status_code == 200
+
+    def test_rejects_wrong_current_password(self, make_user):
+        user = make_user(email="cp-wrong@test.com", must_change_password=True)
+        client = APIClient()
+        client.force_authenticate(user=user)
+        response = client.post(
+            "/api/change-password/",
+            {"current_password": "not-the-real-password", "new_password": "a-strong-new-pw-99"},
+            format="json",
+        )
+        assert response.status_code == 400
+        assert "current password" in str(response.json()).lower()
+        user.refresh_from_db()
+        assert user.must_change_password is True
+        assert user.check_password("testpass123")
 
     def test_rejects_password_that_fails_django_validators(self, make_user):
         user = make_user(email="cp2@test.com")
         client = APIClient()
         client.force_authenticate(user=user)
-        response = client.post("/api/change-password/", {"new_password": "short"}, format="json")
+        response = client.post(
+            "/api/change-password/",
+            {"current_password": "testpass123", "new_password": "short"},
+            format="json",
+        )
         assert response.status_code == 400
         assert "new_password" in response.json()
 
@@ -181,7 +230,11 @@ class TestChangePassword:
         voter = make_voter(student_number="2021-55555")
         client = APIClient()
         client.force_authenticate(user=voter.user)
-        response = client.post("/api/change-password/", {"new_password": "2021-55555"}, format="json")
+        response = client.post(
+            "/api/change-password/",
+            {"current_password": "testpass123", "new_password": "2021-55555"},
+            format="json",
+        )
         assert response.status_code == 400
         assert "student number" in str(response.json())
 
@@ -190,7 +243,9 @@ class TestChangePassword:
         client = APIClient()
         client.force_authenticate(user=admin)
         response = client.post(
-            "/api/change-password/", {"new_password": "a-fine-admin-password-1"}, format="json"
+            "/api/change-password/",
+            {"current_password": "testpass123", "new_password": "a-fine-admin-password-1"},
+            format="json",
         )
         assert response.status_code == 200
 

@@ -12,8 +12,10 @@ from api.services.elections import (
     delete_election,
     get_active_election,
     publish_election,
+    update_election,
 )
 from api.services.exceptions import (
+    ElectionAlreadyStartedError,
     ElectionHasBallotsError,
     ElectionLockedError,
     PublishNotReadyError,
@@ -129,7 +131,7 @@ class TestAddPositionService:
 @pytest.mark.django_db
 class TestDeleteElectionService:
     def test_deletes_when_no_ballots(self, make_election):
-        election = make_election()
+        election = make_election(opens_in_hours=1, closes_in_hours=2)
         delete_election(election)
         assert not Election.objects.filter(pk=election.pk).exists()
 
@@ -141,6 +143,29 @@ class TestDeleteElectionService:
         with pytest.raises(ElectionHasBallotsError):
             delete_election(election)
         assert Election.objects.filter(pk=election.pk).exists()
+
+    def test_raises_when_already_started_even_without_ballots(self, make_election):
+        election = make_election(opens_in_hours=-1)
+        with pytest.raises(ElectionAlreadyStartedError):
+            delete_election(election)
+        assert Election.objects.filter(pk=election.pk).exists()
+
+
+@pytest.mark.django_db
+class TestUpdateElectionService:
+    def test_updates_fields_when_not_yet_started(self, make_election):
+        election = make_election(title="Old Title", opens_in_hours=1, closes_in_hours=2)
+        updated = update_election(election, {"title": "New Title"})
+        assert updated.title == "New Title"
+        election.refresh_from_db()
+        assert election.title == "New Title"
+
+    def test_raises_when_already_started(self, make_election):
+        election = make_election(title="Old Title", opens_in_hours=-1)
+        with pytest.raises(ElectionAlreadyStartedError):
+            update_election(election, {"title": "New Title"})
+        election.refresh_from_db()
+        assert election.title == "Old Title"
 
 
 @pytest.mark.django_db
@@ -280,7 +305,7 @@ class TestElectionDetailView:
 
     def test_admin_can_patch_title_and_dates(self, make_user, make_election):
         admin = make_user(email="admin-patch@test.com", role="admin")
-        election = make_election(title="Old Title")
+        election = make_election(title="Old Title", opens_in_hours=1, closes_in_hours=2)
         client = APIClient()
         client.force_authenticate(user=admin)
         response = client.patch(
@@ -292,7 +317,7 @@ class TestElectionDetailView:
 
     def test_patch_ignores_positions_payload(self, make_user, make_election, make_position):
         admin = make_user(email="admin-patch2@test.com", role="admin")
-        election = make_election()
+        election = make_election(opens_in_hours=1, closes_in_hours=2)
         make_position(election=election, title="President")
         client = APIClient()
         client.force_authenticate(user=admin)
@@ -303,6 +328,18 @@ class TestElectionDetailView:
         )
         assert response.status_code == 200
         assert not Position.objects.filter(election=election, title="Sneaky").exists()
+
+    def test_patch_blocked_once_election_has_started(self, make_user, make_election):
+        admin = make_user(email="admin-patch3@test.com", role="admin")
+        election = make_election(title="Old Title", opens_in_hours=-1)
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = client.patch(
+            f"/api/elections/{election.id}/", {"title": "New Title"}, format="json"
+        )
+        assert response.status_code == 409
+        election.refresh_from_db()
+        assert election.title == "Old Title"
 
     def test_non_admin_cannot_patch(self, make_user, make_election):
         user = make_user(email="notadmin-patch@test.com")
@@ -316,7 +353,7 @@ class TestElectionDetailView:
 
     def test_delete_succeeds_with_no_ballots(self, make_user, make_election):
         admin = make_user(email="admin-delete@test.com", role="admin")
-        election = make_election()
+        election = make_election(opens_in_hours=1, closes_in_hours=2)
         client = APIClient()
         client.force_authenticate(user=admin)
         response = client.delete(f"/api/elections/{election.id}/")
@@ -330,6 +367,17 @@ class TestElectionDetailView:
         election = make_election()
         voter = make_voter()
         make_ballot(election, voter)
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = client.delete(f"/api/elections/{election.id}/")
+        assert response.status_code == 409
+        assert Election.objects.filter(pk=election.pk).exists()
+
+    def test_delete_blocked_once_election_has_started_even_without_ballots(
+        self, make_user, make_election
+    ):
+        admin = make_user(email="admin-delete3@test.com", role="admin")
+        election = make_election(opens_in_hours=-1)
         client = APIClient()
         client.force_authenticate(user=admin)
         response = client.delete(f"/api/elections/{election.id}/")

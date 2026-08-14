@@ -77,7 +77,7 @@ export default function Ballot() {
         <button
           type="button"
           onClick={() => refetch()}
-          className="mt-4 rounded bg-maroon px-4 py-2 text-sm text-sheet transition-colors hover:bg-maroonDark"
+          className="mt-4 rounded-lg bg-gold px-4 py-2 text-sm font-bold text-ink shadow-gold transition-all hover:brightness-105 motion-safe:hover:-translate-y-0.5"
         >
           Try again
         </button>
@@ -153,7 +153,7 @@ export default function Ballot() {
           <button
             type="button"
             onClick={() => setIsConfirming(true)}
-            className="rounded bg-stamp px-6 py-2 font-body text-base text-sheet"
+            className="rounded-lg bg-stamp px-6 py-2 font-body text-base font-bold text-sheet shadow-gold transition-all motion-safe:hover:-translate-y-0.5"
           >
             Cast ballot
           </button>

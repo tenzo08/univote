@@ -1,5 +1,7 @@
+from django.conf import settings
 from django.db import transaction
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from api.models import Candidate, Election, Position, User, Voter
@@ -17,6 +19,21 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
     these in the token would be pure duplication that could go stale."""
 
     def validate(self, attrs):
+        email = attrs.get(self.username_field, "")
+        required_domain = settings.REQUIRED_LOGIN_EMAIL_DOMAIN
+        if required_domain and not email.lower().endswith(f"@{required_domain.lower()}"):
+            # Same exception, same message SimpleJWT itself raises for a
+            # wrong password or unknown email — indistinguishable, so this
+            # never reveals that a domain restriction exists at all. Also
+            # run the password hasher on a throwaway user first (the same
+            # dummy-hash technique EmailCaseInsensitiveBackend uses for an
+            # unknown account) so this branch takes comparably long to the
+            # real authentication path — otherwise it returns near-instantly
+            # while a wrong-password/unknown-email attempt pays the full
+            # hasher cost, and that latency gap is itself a signal an
+            # attacker could use to detect the domain restriction exists.
+            User().set_password(attrs.get("password", ""))
+            raise AuthenticationFailed(self.error_messages["no_active_account"], "no_active_account")
         data = super().validate(attrs)
         data["role"] = self.user.role
         data["must_change_password"] = self.user.must_change_password
@@ -50,6 +67,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True)
 
 
@@ -135,14 +153,6 @@ class ElectionWriteSerializer(serializers.ModelSerializer):
             for position_data in positions_data:
                 Position.objects.create(election=election, **position_data)
         return election
-
-    def update(self, instance, validated_data):
-        validated_data.pop("positions", None)
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
-
 
 class AddPositionSerializer(serializers.ModelSerializer):
     class Meta:

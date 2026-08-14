@@ -13,6 +13,7 @@ function checkRules(password) {
 export default function ChangePassword() {
   const { markPasswordChanged } = useAuth()
   const navigate = useNavigate()
+  const [currentPassword, setCurrentPassword] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
@@ -31,7 +32,7 @@ export default function ChangePassword() {
     }
     setIsSubmitting(true)
     try {
-      await api.post('/change-password/', { new_password: password })
+      await api.post('/change-password/', { current_password: currentPassword, new_password: password })
       markPasswordChanged()
       navigate('/', { replace: true })
     } catch (err) {
@@ -43,11 +44,22 @@ export default function ChangePassword() {
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-sheet px-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm rounded border border-rule bg-sheet p-8">
+      <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-xl border border-rule bg-sheet p-8 shadow-card">
         <h1 className="mb-2 font-display text-xl uppercase tracking-wide text-ink">Set your password</h1>
         <p className="mb-6 text-sm font-body text-ink">
           Your initial password was your student number. Choose a password only you know before you vote.
         </p>
+        <label className="mb-4 block">
+          <span className="mb-1 block text-sm font-body text-ink">Current password</span>
+          <input
+            type="password"
+            required
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+            className="w-full rounded border border-rule bg-sheet px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-maroon"
+          />
+        </label>
         <label className="mb-2 block">
           <span className="mb-1 block text-sm font-body text-ink">New password</span>
           <input
@@ -85,7 +97,7 @@ export default function ChangePassword() {
         <button
           type="submit"
           disabled={isSubmitting || !allRulesMet || !passwordsMatch}
-          className="w-full rounded bg-maroon py-2 font-body text-base text-sheet transition-colors hover:bg-maroonDark disabled:opacity-60"
+          className="w-full rounded-lg bg-gold py-2 font-body text-base font-bold text-ink shadow-gold transition-all hover:brightness-105 motion-safe:hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:brightness-100"
         >
           {isSubmitting ? 'Saving…' : 'Save password'}
         </button>

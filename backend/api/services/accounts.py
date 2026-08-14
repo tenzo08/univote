@@ -8,10 +8,19 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
 
-def change_password(user, new_password):
+def change_password(user, current_password, new_password):
     """Raises django.core.exceptions.ValidationError (a list of messages)
     on failure. On success, saves the user with the new password and
-    must_change_password cleared."""
+    must_change_password cleared.
+
+    current_password is required and checked first — a bearer JWT alone
+    must not be enough to permanently take over an account (e.g. a token
+    grabbed via XSS or a shared device); the caller has to prove they still
+    know the existing credential. For the forced first-login flow, that's
+    the student number they just logged in with moments earlier."""
+    if not user.check_password(current_password):
+        raise ValidationError("Your current password is incorrect.")
+
     # Checked before Django's validators (not after): CSV-imported voters
     # have username == student_number, so UserAttributeSimilarityValidator
     # would otherwise catch this first with a confusing "too similar to

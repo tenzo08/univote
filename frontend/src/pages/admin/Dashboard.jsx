@@ -8,7 +8,7 @@ function ElectionCard({ election }) {
   return (
     <Link
       to={`/admin/elections/${election.id}`}
-      className="mb-3 block rounded border border-rule p-4 shadow-sm transition-colors hover:border-maroon"
+      className="mb-3 block rounded-xl border border-rule bg-sheet p-4 shadow-card transition-all hover:border-maroon hover:shadow-gold motion-safe:hover:-translate-y-0.5"
     >
       <div className="flex items-center justify-between">
         <h3 className="font-display text-lg uppercase tracking-wide text-ink">{election.title}</h3>
@@ -86,14 +86,14 @@ export default function Dashboard() {
         <button
           type="button"
           onClick={() => setIsCreating((value) => !value)}
-          className="rounded bg-maroon px-4 py-2 text-sm text-sheet transition-colors hover:bg-maroonDark"
+          className="rounded-lg bg-gold px-4 py-2 text-sm font-bold text-ink shadow-gold transition-all hover:brightness-105 motion-safe:hover:-translate-y-0.5"
         >
           New election
         </button>
       </div>
 
       {isCreating && (
-        <form onSubmit={handleCreate} className="mb-8 rounded border border-rule p-4">
+        <form onSubmit={handleCreate} className="mb-8 rounded-xl border border-rule bg-sheet p-4 shadow-card">
           <label className="mb-3 block">
             <span className="mb-1 block text-sm font-body text-ink">Title</span>
             <input
@@ -133,7 +133,7 @@ export default function Dashboard() {
           <button
             type="submit"
             disabled={createElection.isPending}
-            className="rounded bg-maroon px-4 py-2 text-sm text-sheet transition-colors hover:bg-maroonDark disabled:opacity-60"
+            className="rounded-lg bg-gold px-4 py-2 text-sm font-bold text-ink shadow-gold transition-all hover:brightness-105 motion-safe:hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:brightness-100"
           >
             Create draft
           </button>

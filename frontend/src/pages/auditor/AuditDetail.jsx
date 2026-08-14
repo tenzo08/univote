@@ -1,4 +1,5 @@
 import { useParams } from 'react-router-dom'
+import StatusBadge from '../../components/StatusBadge.jsx'
 import { useElection } from '../../hooks/useElections'
 import IntegritySection from './IntegritySection'
 import ResultsSection from './ResultsSection'
@@ -19,16 +20,18 @@ export default function AuditDetail() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="mb-1 font-display text-2xl uppercase tracking-wide text-ink">{election.title}</h1>
-      <p className="mb-6 font-data text-xs uppercase text-graph">{election.status}</p>
+      <div className="mb-6 flex items-center gap-3">
+        <h1 className="font-display text-2xl uppercase tracking-wide text-ink">{election.title}</h1>
+        <StatusBadge status={election.status} />
+      </div>
 
-      <div className="mb-8">
+      <div className="mb-6 rounded-xl border border-rule bg-sheet p-6 shadow-card">
         <ResultsSection electionId={electionId} />
       </div>
-      <div className="mb-8">
+      <div className="mb-6 rounded-xl border border-rule bg-sheet p-6 shadow-card">
         <TurnoutSection electionId={electionId} />
       </div>
-      <div className="mb-8">
+      <div className="mb-6 rounded-xl border border-rule bg-sheet p-6 shadow-card">
         <TimelineChart electionId={electionId} />
       </div>
       <IntegritySection electionId={electionId} />

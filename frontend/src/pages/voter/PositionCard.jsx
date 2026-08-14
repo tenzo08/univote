@@ -1,4 +1,5 @@
 import TallyMarks from '../../components/TallyMarks.jsx'
+import initials from '../../lib/initials.js'
 
 /**
  * @param {{
@@ -26,7 +27,7 @@ export default function PositionCard({ position, selectedIds, onChange }) {
   }
 
   return (
-    <fieldset className="mb-6 rounded border border-rule p-4">
+    <fieldset className="mb-6 rounded-xl border border-rule bg-sheet p-4 shadow-card">
       <legend className="px-1 font-display text-lg uppercase tracking-wide text-ink">{title}</legend>
       <p className="mb-3 text-sm font-body text-graph">
         {isSingleChoice ? 'Choose one.' : `Choose up to ${maxVotes}.`}
@@ -35,7 +36,10 @@ export default function PositionCard({ position, selectedIds, onChange }) {
         const checked = selectedIds.includes(candidate.id)
         const disabled = !isSingleChoice && !checked && atLimit
         return (
-          <label key={candidate.id} className="mb-3 flex items-start gap-3">
+          <label
+            key={candidate.id}
+            className={`mb-2 flex items-start gap-3 rounded-lg p-2 transition-colors ${checked ? 'bg-gold/15' : 'hover:bg-rule/30'}`}
+          >
             <input
               type={isSingleChoice ? 'radio' : 'checkbox'}
               name={`position-${id}`}
@@ -44,6 +48,12 @@ export default function PositionCard({ position, selectedIds, onChange }) {
               onChange={() => toggle(candidate.id)}
               className="mt-1 accent-maroon"
             />
+            <span
+              aria-hidden="true"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-maroon font-display text-xs text-sheet"
+            >
+              {initials(candidate.full_name)}
+            </span>
             <span>
               <span className="block font-body text-base text-ink">{candidate.full_name}</span>
               <span className="block font-data text-xs text-graph">{candidate.student_number}</span>

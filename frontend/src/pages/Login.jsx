@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import upSeal from '../assets/UP-Seal.png'
 import { useAuth } from '../lib/auth.jsx'
 
 export default function Login() {
@@ -25,9 +26,16 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-sheet px-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm rounded border border-rule bg-sheet p-8">
-        <h1 className="mb-6 font-display text-xl uppercase tracking-wide text-ink">UniVote</h1>
+    <div className="flex min-h-svh items-center justify-center bg-gradient-to-br from-maroon to-maroonDark px-4">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-sm rounded-xl border border-rule bg-sheet p-8 shadow-card"
+      >
+        <img src={upSeal} alt="University of the Philippines seal" className="mx-auto mb-4 h-20 w-20" />
+        <h1 className="mb-1 text-center font-display text-xl uppercase tracking-wide text-ink">UniVote</h1>
+        <p className="mb-6 text-center font-body text-xs uppercase tracking-wide text-graph">
+          University of the Philippines
+        </p>
         <label className="mb-4 block">
           <span className="mb-1 block text-sm font-body text-ink">Email</span>
           <input
@@ -58,7 +66,7 @@ export default function Login() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full rounded bg-maroon py-2 font-body text-base text-sheet transition-colors hover:bg-maroonDark disabled:opacity-60"
+          className="w-full rounded-lg bg-gold py-2 font-body text-base font-bold text-ink shadow-gold transition-all hover:brightness-105 motion-safe:hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:brightness-100"
         >
           {isSubmitting ? 'Signing in…' : 'Sign in'}
         </button>

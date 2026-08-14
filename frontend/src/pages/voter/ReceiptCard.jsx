@@ -14,7 +14,7 @@ export default function ReceiptCard({ receiptCode }) {
   }
 
   return (
-    <div className="rounded border border-rule bg-sheet p-8 text-center">
+    <div className="rounded-xl border border-rule bg-sheet p-8 text-center shadow-card">
       <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-seal text-sheet">
         <span aria-hidden="true" className="font-display text-2xl">
           ✓

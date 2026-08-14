@@ -49,20 +49,23 @@ python manage.py seed_demo --reset
 ```
 
 Creates one archived election, one live published election with staggered
-ballots, one draft election, and roughly 60 bulk voters. Refuses to run
-against a non-empty database unless `--reset` is passed.
+ballots, one draft election, and 22 named voter/official accounts. Refuses
+to run against a non-empty database unless `--reset` is passed.
 
-Never run this against a database holding a real election — the accounts
-below use fixed, publicly-known passwords, which is only acceptable because
-this command only ever creates `@test.com` demo data.
+Login only accepts `@up.edu.ph` addresses (`DJANGO_REQUIRED_LOGIN_EMAIL_DOMAIN`,
+default `up.edu.ph`) — every seeded account uses that domain. Never run this
+command against a database holding a real election — the accounts below use
+fixed, publicly-known passwords, which is only acceptable for test data.
+The full 22-account roster (candidates, general electorate, exact student
+numbers) lives in the local, gitignored `docs/DEPLOYMENT-GUIDE.md` — the
+table below is just the four accounts most people reach for first.
 
 | Account | Password | Role |
 |---|---|---|
-| `admin@test.com` | `DemoAdmin123!` | Admin |
-| `auditor@test.com` | `DemoAuditor123!` | Auditor |
-| `voter@test.com` | `DemoVoter123!` | Voter (already voted; password already changed) |
-| `candidate@test.com` | `DemoCandidate123!` | Voter and a registered candidate |
-| `bulkvoter<N>@test.com` (0–64) | their own student number, e.g. `bulk-0001` | Voter — forced to change their password on first login, same as a real CSV-imported voter |
+| `isabel.fernandez@up.edu.ph` | `ComelecChair2026!` | Admin — COMELEC Chairperson |
+| `gabriel.santos@up.edu.ph` | `USCAuditor2026!` | Auditor — USC Election Auditor |
+| `ana.delacruz@up.edu.ph` | `AnaVoter2026!` | Voter — already voted (password already changed) |
+| `miguel.torres@up.edu.ph` | `MiguelVoter2026!` | Voter — enrolled, hasn't voted yet (password already changed) |
 
 ## Roles
 
@@ -120,6 +123,7 @@ connection string is ready to paste into `DATABASE_URL`.
 | `CORS_ALLOWED_ORIGINS` | `https://your-app.vercel.app` |
 | `CSRF_TRUSTED_ORIGINS` | `https://your-app.vercel.app` |
 | `PYTHON_VERSION` | `3.11.9` |
+| `DJANGO_REQUIRED_LOGIN_EMAIL_DOMAIN` | `up.edu.ph` (default, optional) |
 
 Generate a fresh secret key (never the value in `.env.example` or your local
 `.env`):

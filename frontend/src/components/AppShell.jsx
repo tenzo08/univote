@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import upSeal from '../assets/UP-Seal.png'
 import { homeForRole } from './RequireRole.jsx'
 import { useAuth } from '../lib/auth.jsx'
 
@@ -9,8 +10,12 @@ export default function AppShell({ children }) {
 
   return (
     <div className="min-h-svh bg-sheet">
-      <header className="flex items-center justify-between bg-maroon px-4 py-3 text-sheet sm:px-8">
-        <Link to={user ? homeForRole(user.role) : '/login'} className="font-display text-lg uppercase tracking-wide">
+      <header className="flex items-center justify-between bg-maroon px-4 py-3 text-sheet shadow-card sm:px-8">
+        <Link
+          to={user ? homeForRole(user.role) : '/login'}
+          className="flex items-center gap-3 font-display text-lg uppercase tracking-wide"
+        >
+          <img src={upSeal} alt="" className="h-9 w-9" />
           UniVote
         </Link>
         <div className="flex items-center gap-4 font-body text-sm">
