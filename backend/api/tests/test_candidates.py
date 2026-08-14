@@ -37,7 +37,7 @@ class TestRegisterCandidate:
         self, make_user, make_election, make_position, make_voter
     ):
         admin = make_user(email="admin1@test.com", role="admin")
-        election = make_election()
+        election = make_election(opens_in_hours=1, closes_in_hours=2)
         position = make_position(election=election, title="President")
         voter = make_voter(student_number="2021-14321")
 
@@ -71,7 +71,7 @@ class TestRegisterCandidate:
 
     def test_unknown_student_number_returns_404(self, make_user, make_election, make_position):
         admin = make_user(email="admin2@test.com", role="admin")
-        election = make_election()
+        election = make_election(opens_in_hours=1, closes_in_hours=2)
         position = make_position(election=election)
 
         client = APIClient()
@@ -120,11 +120,29 @@ class TestRegisterCandidate:
         )
         assert response.status_code == 400
 
+    def test_blocked_once_election_has_started_even_if_not_published(
+        self, make_user, make_election, make_position, make_voter
+    ):
+        admin = make_user(email="admin-started@test.com", role="admin")
+        election = make_election(status=Election.Status.DRAFT, opens_in_hours=-1)
+        position = make_position(election=election)
+        make_voter(student_number="2021-00777")
+
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = client.post(
+            f"/api/elections/{election.id}/candidates/",
+            {"student_number": "2021-00777", "position": position.id},
+            format="json",
+        )
+        assert response.status_code == 400
+        assert not Candidate.objects.filter(voter__student_number="2021-00777").exists()
+
     def test_duplicate_registration_for_same_position_returns_400(
         self, make_user, make_election, make_position, make_voter
     ):
         admin = make_user(email="admin-dup@test.com", role="admin")
-        election = make_election()
+        election = make_election(opens_in_hours=1, closes_in_hours=2)
         position = make_position(election=election, title="President")
         make_voter(student_number="2021-00555")
 
@@ -148,7 +166,7 @@ class TestRegisterCandidate:
         self, make_user, make_election, make_position, make_voter, tiny_png
     ):
         admin = make_user(email="admin5@test.com", role="admin")
-        election = make_election()
+        election = make_election(opens_in_hours=1, closes_in_hours=2)
         position = make_position(election=election)
         make_voter(student_number="2021-00333")
 
@@ -223,7 +241,7 @@ class TestDeleteCandidate:
         self, make_user, make_election, make_position, make_candidate, make_voter
     ):
         admin = make_user(email="admin8@test.com", role="admin")
-        election = make_election()
+        election = make_election(opens_in_hours=1, closes_in_hours=2)
         position = make_position(election=election)
         candidate = make_candidate(election=election, position=position, voter=make_voter())
 
@@ -233,6 +251,21 @@ class TestDeleteCandidate:
 
         assert response.status_code == 204
         assert not Candidate.objects.filter(pk=candidate.pk).exists()
+
+    def test_blocked_once_election_has_started_even_if_not_published(
+        self, make_user, make_election, make_position, make_candidate, make_voter
+    ):
+        admin = make_user(email="admin11@test.com", role="admin")
+        election = make_election(status=Election.Status.DRAFT, opens_in_hours=-1)
+        position = make_position(election=election)
+        candidate = make_candidate(election=election, position=position, voter=make_voter())
+
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        response = client.delete(f"/api/elections/{election.id}/candidates/{candidate.id}/")
+
+        assert response.status_code == 400
+        assert Candidate.objects.filter(pk=candidate.pk).exists()
 
     def test_blocked_while_election_published(
         self, make_user, make_election, make_position, make_candidate, make_voter

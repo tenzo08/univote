@@ -111,10 +111,15 @@ class TestArchiveElection:
 @pytest.mark.django_db
 class TestAddPositionService:
     def test_creates_a_position(self, make_election):
-        election = make_election()
+        election = make_election(opens_in_hours=1, closes_in_hours=2)
         position = add_position(election, title="Treasurer", max_votes=1, order=2)
         assert position.election_id == election.id
         assert Position.objects.filter(election=election, title="Treasurer").exists()
+
+    def test_raises_when_election_already_started(self, make_election):
+        election = make_election(opens_in_hours=-1)
+        with pytest.raises(ElectionLockedError):
+            add_position(election, title="Treasurer")
 
     def test_raises_when_election_published(
         self, make_election, make_position, make_candidate, make_voter
@@ -436,7 +441,7 @@ class TestArchiveElectionView:
 class TestAddPositionView:
     def test_admin_can_add_a_position(self, make_user, make_election):
         admin = make_user(email="admin-addpos@test.com", role="admin")
-        election = make_election()
+        election = make_election(opens_in_hours=1, closes_in_hours=2)
         client = APIClient()
         client.force_authenticate(user=admin)
         response = client.post(
@@ -467,7 +472,7 @@ class TestAddPositionView:
 
     def test_duplicate_title_returns_400(self, make_user, make_election, make_position):
         admin = make_user(email="admin-addpos3@test.com", role="admin")
-        election = make_election()
+        election = make_election(opens_in_hours=1, closes_in_hours=2)
         make_position(election=election, title="President")
         client = APIClient()
         client.force_authenticate(user=admin)

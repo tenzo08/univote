@@ -5,7 +5,8 @@ check is plain field validation and lives in the serializer instead."""
 
 from django.db import IntegrityError, transaction
 
-from api.models import Candidate, Election, Voter
+from api.models import Candidate, Voter
+from api.services.elections import election_is_locked
 from api.services.enrollment import enroll
 from api.services.exceptions import (
     CandidateAlreadyRegisteredError,
@@ -16,9 +17,9 @@ from api.services.exceptions import (
 
 
 def register_candidate(election, position, student_number, platform="", photo=None):
-    if election.status == Election.Status.PUBLISHED:
+    if election_is_locked(election):
         raise ElectionLockedError(
-            "Cannot register a candidate while the election is published."
+            "Cannot register a candidate once the election is published or has started."
         )
     try:
         voter = Voter.objects.get(student_number=student_number)
@@ -45,12 +46,15 @@ def register_candidate(election, position, student_number, platform="", photo=No
 
 
 def delete_candidate(candidate):
-    if candidate.election.status == Election.Status.PUBLISHED:
-        raise ElectionLockedError(
-            "Cannot remove a candidate while the election is published."
-        )
+    """Selections are checked first so the more specific, more informative
+    reason wins when both conditions hold — mirrors delete_election's
+    ballots-before-started ordering."""
     if candidate.selections.exists():
         raise CandidateHasSelectionsError(
             "Cannot remove a candidate who already has recorded votes."
+        )
+    if election_is_locked(candidate.election):
+        raise ElectionLockedError(
+            "Cannot remove a candidate once the election is published or has started."
         )
     candidate.delete()

@@ -124,6 +124,20 @@ class Command(BaseCommand):
             title=title, opens_at=now + opens_delta, closes_at=now + closes_delta
         )
 
+    def _reschedule(self, election, opens_delta, closes_delta):
+        """Direct ORM update, deliberately bypassing update_election's
+        opens_at-based lock — this is trusted internal seed-data setup, not
+        the guarded admin API path. Positions/candidates are staffed first
+        while the election's window is still safely in the future (see
+        _seed below), then the schedule is moved here to its real, often
+        already-past, value — add_position/register_candidate would refuse
+        to run once opens_at is in the past, so staffing has to happen
+        before this call, not after."""
+        now = timezone.now()
+        election.opens_at = now + opens_delta
+        election.closes_at = now + closes_delta
+        election.save(update_fields=["opens_at", "closes_at"])
+
     def _staff_positions_and_candidates(self, election, candidate_voters):
         president = add_position(election, title="President", max_votes=1, order=0)
         senator = add_position(election, title="Senator", max_votes=2, order=1)
@@ -223,20 +237,26 @@ class Command(BaseCommand):
         live_candidates = self._create_voters(LIVE_CANDIDATES)
         general_electorate = self._create_voters(GENERAL_ELECTORATE)
 
+        # Built on a placeholder future window first — add_position/
+        # register_candidate now refuse to run once opens_at is in the
+        # past, so positions/candidates are staffed before each election
+        # is rescheduled to its real (often already-past) window below.
         archived_election = self._build_election(
             "General Election 2025",
-            opens_delta=timedelta(days=-400),
-            closes_delta=timedelta(days=-395),
+            opens_delta=timedelta(days=1),
+            closes_delta=timedelta(days=2),
         )
         self._staff_positions_and_candidates(archived_election, archived_candidates)
+        self._reschedule(archived_election, timedelta(days=-400), timedelta(days=-395))
         publish_election(archived_election)
 
         live_election = self._build_election(
             "General Election 2026",
-            opens_delta=timedelta(days=-3),
-            closes_delta=timedelta(days=4),
+            opens_delta=timedelta(days=1),
+            closes_delta=timedelta(days=2),
         )
         president, senator = self._staff_positions_and_candidates(live_election, live_candidates)
+        self._reschedule(live_election, timedelta(days=-3), timedelta(days=4))
         # Archives archived_election automatically — Election.publish()
         # archives every other published row by design.
         publish_election(live_election)

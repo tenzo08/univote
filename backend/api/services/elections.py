@@ -52,12 +52,23 @@ def archive_election(election):
     return election
 
 
+def election_is_locked(election):
+    """True once positions/candidates can no longer be edited — either the
+    election has been published, or its voting window has already opened
+    even if it was never published (e.g. a draft whose opens_at slipped
+    into the past). Shared by add_position, register_candidate, and
+    delete_candidate so the three stay consistent with each other and with
+    update_election/delete_election's opens_at-based lock on the election
+    record itself."""
+    return election.status == Election.Status.PUBLISHED or timezone.now() >= election.opens_at
+
+
 def add_position(election, title, max_votes=1, order=0):
-    """Blocked while status == published — broader than "voting is open",
-    see 02-DATA-MODEL.md."""
-    if election.status == Election.Status.PUBLISHED:
+    """Blocked while status == published, or once the election has started
+    — broader than "voting is open", see 02-DATA-MODEL.md."""
+    if election_is_locked(election):
         raise ElectionLockedError(
-            "Cannot add a position while the election is published."
+            "Cannot add a position once the election is published or has started."
         )
     try:
         with transaction.atomic():
