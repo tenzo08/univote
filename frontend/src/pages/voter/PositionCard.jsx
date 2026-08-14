@@ -42,7 +42,7 @@ export default function PositionCard({ position, selectedIds, onChange }) {
               checked={checked}
               disabled={disabled}
               onChange={() => toggle(candidate.id)}
-              className="mt-1"
+              className="mt-1 accent-maroon"
             />
             <span>
               <span className="block font-body text-base text-ink">{candidate.full_name}</span>
@@ -57,7 +57,7 @@ export default function PositionCard({ position, selectedIds, onChange }) {
         )
       })}
       {isSingleChoice && selectedIds.length > 0 && (
-        <button type="button" onClick={() => onChange([])} className="mt-1 text-sm text-ink underline">
+        <button type="button" onClick={() => onChange([])} className="mt-1 text-sm text-maroon underline">
           Clear selection
         </button>
       )}

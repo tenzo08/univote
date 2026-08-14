@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth.jsx'
+import AppShell from './AppShell.jsx'
 
 export function homeForRole(role) {
   if (role === 'voter') return '/vote'
@@ -29,5 +30,5 @@ export default function RequireRole({ roles, children }) {
     return <Navigate to={homeForRole(user.role)} replace />
   }
 
-  return children
+  return <AppShell>{children}</AppShell>
 }

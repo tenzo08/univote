@@ -10,6 +10,9 @@ export default {
         stamp: "#C2402E",
         seal: "#1F5C4A",
         graph: "#657388",
+        maroon: "#891437",
+        maroonDark: "#4D1525",
+        gold: "#FFB81C",
       },
       fontFamily: {
         display: ["Oswald", "sans-serif"],

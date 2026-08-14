@@ -157,7 +157,7 @@ export default function Roster() {
           type="button"
           disabled={selected.size === 0}
           onClick={handleBulkEnroll}
-          className="rounded border border-rule px-3 py-2 text-sm text-ink disabled:opacity-50"
+          className="rounded border border-rule px-3 py-2 text-sm text-ink transition-colors hover:border-maroon hover:text-maroon disabled:opacity-50 disabled:hover:border-rule disabled:hover:text-ink"
         >
           Enroll selected
         </button>
@@ -165,7 +165,7 @@ export default function Roster() {
           type="button"
           disabled={selected.size === 0}
           onClick={handleBulkUnenroll}
-          className="rounded border border-rule px-3 py-2 text-sm text-ink disabled:opacity-50"
+          className="rounded border border-rule px-3 py-2 text-sm text-ink transition-colors hover:border-maroon hover:text-maroon disabled:opacity-50 disabled:hover:border-rule disabled:hover:text-ink"
         >
           Unenroll selected
         </button>
@@ -213,6 +213,7 @@ export default function Roster() {
                     disabled={voter.has_ballot}
                     checked={selected.has(voter.id)}
                     onChange={() => toggleSelected(voter.id)}
+                    className="accent-maroon"
                   />
                 </td>
                 <td className="py-2 pr-2 font-data">{voter.student_number}</td>

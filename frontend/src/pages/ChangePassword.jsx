@@ -56,7 +56,7 @@ export default function ChangePassword() {
             autoComplete="new-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="w-full rounded border border-rule bg-sheet px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-ink"
+            className="w-full rounded border border-rule bg-sheet px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-maroon"
           />
         </label>
         <ul className="mb-4 space-y-1 text-sm font-body" aria-live="polite">
@@ -74,7 +74,7 @@ export default function ChangePassword() {
             autoComplete="new-password"
             value={confirm}
             onChange={(event) => setConfirm(event.target.value)}
-            className="w-full rounded border border-rule bg-sheet px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-ink"
+            className="w-full rounded border border-rule bg-sheet px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-maroon"
           />
         </label>
         {error && (
@@ -85,7 +85,7 @@ export default function ChangePassword() {
         <button
           type="submit"
           disabled={isSubmitting || !allRulesMet || !passwordsMatch}
-          className="w-full rounded bg-ink py-2 font-body text-base text-sheet disabled:opacity-60"
+          className="w-full rounded bg-maroon py-2 font-body text-base text-sheet transition-colors hover:bg-maroonDark disabled:opacity-60"
         >
           {isSubmitting ? 'Saving…' : 'Save password'}
         </button>

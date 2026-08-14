@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useDeleteCandidate, useCandidates, useRegisterCandidate } from '../../hooks/useCandidates'
 import { useArchiveElection, useElection, useAddPosition, usePublishElection } from '../../hooks/useElections'
 import { extractErrorMessage } from '../../lib/api'
+import StatusBadge from '../../components/StatusBadge.jsx'
 
 function AddPositionForm({ electionId, disabled }) {
   const addPosition = useAddPosition(electionId)
@@ -48,7 +49,7 @@ function AddPositionForm({ electionId, disabled }) {
           className="w-20 rounded border border-rule px-3 py-2 text-base text-ink"
         />
       </label>
-      <button type="submit" className="rounded bg-ink px-4 py-2 text-sm text-sheet">
+      <button type="submit" className="rounded bg-maroon px-4 py-2 text-sm text-sheet transition-colors hover:bg-maroonDark">
         Add position
       </button>
       {error && (
@@ -174,11 +175,14 @@ export default function ElectionSetup() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl uppercase tracking-wide text-ink">{election.title}</h1>
-          <span className="mt-1 inline-block rounded border border-rule px-2 py-0.5 font-data text-xs uppercase text-graph">
-            {election.status}
-          </span>
+          <div className="mt-1 inline-block">
+            <StatusBadge status={election.status} />
+          </div>
         </div>
-        <Link to={`/admin/elections/${electionId}/roster`} className="rounded border border-rule px-4 py-2 text-sm text-ink">
+        <Link
+          to={`/admin/elections/${electionId}/roster`}
+          className="rounded border border-rule px-4 py-2 text-sm text-ink transition-colors hover:border-maroon hover:text-maroon"
+        >
           Voter roster
         </Link>
       </div>
@@ -252,7 +256,7 @@ export default function ElectionSetup() {
             type="button"
             onClick={handleArchive}
             disabled={archiveElection.isPending}
-            className="rounded border border-rule px-4 py-2 text-sm text-ink"
+            className="rounded border border-rule px-4 py-2 text-sm text-ink transition-colors hover:border-maroon hover:text-maroon"
           >
             Archive
           </button>

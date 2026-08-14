@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useElections } from '../../hooks/useElections'
+import StatusBadge from '../../components/StatusBadge.jsx'
 
 export default function ElectionPicker() {
   const { data, isLoading, isError } = useElections()
@@ -21,13 +22,11 @@ export default function ElectionPicker() {
         <Link
           key={election.id}
           to={`/audit/${election.id}`}
-          className="mb-3 block rounded border border-rule p-4 hover:border-ink"
+          className="mb-3 block rounded border border-rule p-4 shadow-sm transition-colors hover:border-maroon"
         >
           <div className="flex items-center justify-between">
             <h2 className="font-display text-lg uppercase tracking-wide text-ink">{election.title}</h2>
-            <span className="rounded border border-rule px-2 py-0.5 font-data text-xs uppercase text-graph">
-              {election.status}
-            </span>
+            <StatusBadge status={election.status} />
           </div>
         </Link>
       ))}

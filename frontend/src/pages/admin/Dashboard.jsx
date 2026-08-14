@@ -2,15 +2,17 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useCreateElection, useElections } from '../../hooks/useElections'
 import { extractErrorMessage } from '../../lib/api'
+import StatusBadge from '../../components/StatusBadge.jsx'
 
 function ElectionCard({ election }) {
   return (
-    <Link to={`/admin/elections/${election.id}`} className="mb-3 block rounded border border-rule p-4 hover:border-ink">
+    <Link
+      to={`/admin/elections/${election.id}`}
+      className="mb-3 block rounded border border-rule p-4 shadow-sm transition-colors hover:border-maroon"
+    >
       <div className="flex items-center justify-between">
         <h3 className="font-display text-lg uppercase tracking-wide text-ink">{election.title}</h3>
-        <span className="rounded border border-rule px-2 py-0.5 font-data text-xs uppercase text-graph">
-          {election.status}
-        </span>
+        <StatusBadge status={election.status} />
       </div>
       <p className="mt-1 font-data text-xs text-graph">
         {election.candidate_count} candidates · {election.enrolled_count} enrolled · {election.ballot_count} ballots
@@ -84,7 +86,7 @@ export default function Dashboard() {
         <button
           type="button"
           onClick={() => setIsCreating((value) => !value)}
-          className="rounded bg-ink px-4 py-2 text-sm text-sheet"
+          className="rounded bg-maroon px-4 py-2 text-sm text-sheet transition-colors hover:bg-maroonDark"
         >
           New election
         </button>
@@ -131,7 +133,7 @@ export default function Dashboard() {
           <button
             type="submit"
             disabled={createElection.isPending}
-            className="rounded bg-ink px-4 py-2 text-sm text-sheet disabled:opacity-60"
+            className="rounded bg-maroon px-4 py-2 text-sm text-sheet transition-colors hover:bg-maroonDark disabled:opacity-60"
           >
             Create draft
           </button>

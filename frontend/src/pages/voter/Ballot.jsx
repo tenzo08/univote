@@ -74,7 +74,11 @@ export default function Ballot() {
     return (
       <StatusScreen>
         <p className="font-body text-base text-ink">Something went wrong loading your ballot.</p>
-        <button type="button" onClick={() => refetch()} className="mt-4 rounded bg-ink px-4 py-2 text-sm text-sheet">
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="mt-4 rounded bg-maroon px-4 py-2 text-sm text-sheet transition-colors hover:bg-maroonDark"
+        >
           Try again
         </button>
       </StatusScreen>
